@@ -2,18 +2,9 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist))
 
 (in-package :utils)
-
-
-(defun parse-query-string (query-string)
-  (when query-string
-        (loop for pair in (cl-ppcre:split "&" query-string)
-              collect (let* ((kv (cl-ppcre:split "=" pair))
-                             (key (first kv))
-                             (val (second kv)))
-                        (cons key val)))))
 
 (defun parse-request-body-string (input content-length)
   "リクエストボディを読み取って文字列として返す"
@@ -29,3 +20,22 @@
     (error (e)
       ;; 失敗したら (:error "メッセージ") を返す
       (list :error (format nil "~A" e)))))
+
+(defun parse-query-string (qs)
+  "クエリ文字列をALISTに変換"
+  (when qs
+        (mapcar (lambda (pair)
+                  (destructuring-bind (k v)
+                      (uiop:split-string pair :separator "=")
+                    (cons k v)))
+            (uiop:split-string qs :separator "&"))))
+
+(defun parse-query-string-plist (qs)
+  "クエリ文字列を PLIST に変換"
+  (when qs
+        (apply #'append
+          (mapcar (lambda (pair)
+                    (destructuring-bind (k v)
+                        (uiop:split-string pair :separator "=")
+                      (list (intern (string-upcase k) :keyword) v)))
+              (uiop:split-string qs :separator "&")))))

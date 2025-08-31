@@ -73,23 +73,39 @@
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /")))
 
+(defmacro with-api-response ((result) &body body)
+  "共通のAPIレスポンスラッパ。結果が :invalid ならエラーレスポンスを返す。
+   そうでなければ body を評価して正常レスポンスを返す。"
+  `(let ((res ,result))
+     (if (eq res :invalid)
+         `(400 (:content-type "application/json")
+               (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
+         (progn ,@body))))
+
+
 (defroute-http "/users"
-               `(200 (:content-type "application/json") ,(list (controllers.users:get-users))))
+               (let ((users (controllers.users:get-users)))
+                 (if (eq users :invalid)
+                     ;; エラー時
+                     `(400 (:content-type "application/json")
+                           (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
+                     ;; 正常時
+                     `(200 (:content-type "application/json")
+                           (list ,(jonathan:to-json users))))))
 
 (defroute-http "/user"
                (let* ((qs (getf env :query-string))
-                      (params (utils:parse-query-string qs))
-                      (ht (alexandria:alist-hash-table params :test 'equal))
-                      (json-string (jonathan:to-json ht))
-                      (user (controllers.users:get-user json-string)))
-                 (destructuring-bind (uid name img) (first user)
-                   (let ((user-plist `(:uid ,uid :name ,name :img ,img)))
-                     `(200 (:content-type "application/json")
-                           (list ,(jonathan:to-json user-plist))))))
-                           
-                           
-                           
-                           )
+                      (params (utils:parse-query-string-plist qs))
+                      (user (controllers.users:get-user params)))
+                 (cond
+                  ;; エラーをまとめて統一
+                  ((eq user :invalid)
+                    `(400 (:content-type "application/json")
+                          (list ,(jonathan:to-json '((:status "error" :message "invalid"))))))
+                  ;; 正常時
+                  (t
+                    `(200 (:content-type "application/json")
+                          (list ,(jonathan:to-json user)))))))
 
 (defroute-http "/create-user"
                (let* ((headers (getf env :headers))
@@ -105,7 +121,6 @@
                   (t
                     `(500 (:content-type "application/json")
                           ("{\"status\":\"error\"}"))))))
-
 
 (defroute-ws "/websocket"
              (on :message ws

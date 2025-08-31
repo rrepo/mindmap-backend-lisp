@@ -7,15 +7,23 @@
 
 (in-package :controllers.users)
 
-(defun get-users ()
-  (let ((users (models.users:get-users)))
-    (jonathan:to-json users)))
+(defmacro with-invalid (&body body)
+  `(handler-case
+       (or (progn ,@body)
+           :invalid)
+     (error (e)
+       (format *error-output* "ERROR: ~A~%" e)
+       :invalid)))
 
-(defun get-user (json-string)
-  (let* ((params (jonathan:parse json-string :keywordize t))
-         (uid (getf params :|uid|)))
-    (format *error-output* "UID: ~A~%" uid)
-    (models.users:get-user uid)))
+(defun get-users ()
+  (with-invalid
+   (models.users:get-users)))
+
+(defun get-user (params)
+  (with-invalid
+   (let ((uid (getf params :UID)))
+     (when (and uid (not (string= uid "")))
+           (models.users:get-user uid)))))
 
 (defun create-user (json-string)
   (handler-case
@@ -26,4 +34,3 @@
         (models.users:create-user uid name img))
     (error (e)
       (list :error (princ-to-string e)))))
-
