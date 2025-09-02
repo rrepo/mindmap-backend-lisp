@@ -56,8 +56,9 @@
               (,(jonathan:to-json '(:status "error")))))
       (t
         `(200 (:content-type "application/json")
-              (,(jonathan:to-json res)))))))
-
+              (,(jonathan:to-json
+                 (list :status "success"
+                       :data (if (eq res :success) :null res)))))))))
 
 (defroute-http "/users"
                (with-api-response (controllers.users:get-users)))

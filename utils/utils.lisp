@@ -2,7 +2,7 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid))
 
 (in-package :utils)
 
@@ -43,6 +43,14 @@
                       (list (intern (string-upcase k) :keyword) v)))
               (uiop:split-string qs :separator "&")))))
 
+(defmacro with-invalid (&body body)
+  `(handler-case
+       (or (progn ,@body)
+           :invalid)
+     (error (e)
+       (format *error-output* "ERROR: ~A~%" e)
+       :invalid)))
+
 (defun extract-json-params (env)
   "env からリクエストボディを取り出して JSON を plist に変換する。
    パースに失敗したら :invalid を返す。"
@@ -52,6 +60,6 @@
                             (or (header-value headers "content-length") "0")
                             :junk-allowed t))
           (input (getf env :raw-body))
-          (body-string (utils:parse-request-body-string input content-length))
-          (params (utils:safe-parse-json body-string)))
+          (body-string (parse-request-body-string input content-length))
+          (params (safe-parse-json body-string)))
      params)))
