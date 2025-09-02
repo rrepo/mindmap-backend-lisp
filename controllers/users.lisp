@@ -19,18 +19,27 @@
   (with-invalid
    (models.users:get-users)))
 
-(defun get-user (params)
+(defun get-user (env)
   (with-invalid
-   (let ((uid (getf params :UID)))
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (uid (getf params :UID)))
      (when (and uid (not (string= uid "")))
            (models.users:get-user uid)))))
 
-(defun create-user (json-string)
-  (handler-case
-      (let* ((data (jonathan:parse json-string :keywordize t))
-             (uid (getf data :|uid|))
-             (name (getf data :|name|))
-             (img (getf data :|img| nil)))
-        (models.users:create-user uid name img))
-    (error (e)
-      (list :error (princ-to-string e)))))
+(defun create-user (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (with-invalid
+   (let* ((headers (getf env :headers))
+          (content-length (parse-integer
+                            (or (utils:header-value headers "content-length") "0")
+                            :junk-allowed t))
+          (input (getf env :raw-body))
+          (body-string (utils:parse-request-body-string input content-length))
+          (params (utils:safe-parse-json body-string))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|))
+          (img (getf params :|img|)))
+     (when (and uid name)
+           (models.users:create-user uid name img)
+           :success))))

@@ -23,37 +23,12 @@
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
 
-(defun header-value (headers name)
-  (gethash name headers))
-
 (defvar *my-app*
         (lambda (env)
           (let* ((path (getf env :path-info))
                  (headers (getf env :headers))
-                 (upgrade (header-value headers "upgrade"))
-                 (connection (header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
-
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (header-value headers "upgrade"))
-                 (connection (header-value headers "connection")))
+                 (upgrade (utils:header-value headers "upgrade"))
+                 (connection (utils:header-value headers "connection")))
             ;; WebSocket
             (if (and (string= path "/websocket")
                      upgrade
@@ -73,54 +48,25 @@
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /")))
 
-(defmacro with-api-response ((result) &body body)
-  "共通のAPIレスポンスラッパ。結果が :invalid ならエラーレスポンスを返す。
-   そうでなければ body を評価して正常レスポンスを返す。"
+(defmacro with-api-response (result)
   `(let ((res ,result))
-     (if (eq res :invalid)
-         `(400 (:content-type "application/json")
-               (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
-         (progn ,@body))))
+     (cond
+      ((eq res :invalid)
+        `(400 (:content-type "application/json")
+              (,(jonathan:to-json '(:status "error")))))
+      (t
+        `(200 (:content-type "application/json")
+              (,(jonathan:to-json res)))))))
 
 
 (defroute-http "/users"
-               (let ((users (controllers.users:get-users)))
-                 (if (eq users :invalid)
-                     ;; エラー時
-                     `(400 (:content-type "application/json")
-                           (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
-                     ;; 正常時
-                     `(200 (:content-type "application/json")
-                           (list ,(jonathan:to-json users))))))
+               (with-api-response (controllers.users:get-users)))
 
 (defroute-http "/user"
-               (let* ((qs (getf env :query-string))
-                      (params (utils:parse-query-string-plist qs))
-                      (user (controllers.users:get-user params)))
-                 (cond
-                  ;; エラーをまとめて統一
-                  ((eq user :invalid)
-                    `(400 (:content-type "application/json")
-                          (list ,(jonathan:to-json '((:status "error" :message "invalid"))))))
-                  ;; 正常時
-                  (t
-                    `(200 (:content-type "application/json")
-                          (list ,(jonathan:to-json user)))))))
+               (with-api-response (controllers.users:get-user env)))
 
 (defroute-http "/create-user"
-               (let* ((headers (getf env :headers))
-                      (content-length (parse-integer (or (header-value headers "content-length") "0")
-                                                     :junk-allowed t))
-                      (input (getf env :raw-body))
-                      (body-string (utils:parse-request-body-string input content-length))
-                      (result (controllers.users:create-user body-string)))
-                 (cond
-                  ((eq result :success)
-                    `(200 (:content-type "application/json")
-                          (,(jonathan:to-json '(("status" . "success"))))))
-                  (t
-                    `(500 (:content-type "application/json")
-                          ("{\"status\":\"error\"}"))))))
+               (with-api-response (controllers.users:create-user env)))
 
 (defroute-ws "/websocket"
              (on :message ws

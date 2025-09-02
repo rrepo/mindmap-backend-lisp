@@ -1,134 +1,57 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver)
-  (:export :start-app))
+(defpackage :utils
+  (:use :cl :jonathan)
+  (:import-from :cl-ppcre :split)
+  (:import-from :flexi-streams :octets-to-string)
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value))
 
-(in-package :websocket-app)
-
-(load "./controllers/users.lisp")
-(load "./utils/utils.lisp")
-
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
-
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
-         ,@body
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
-
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
+(in-package :utils)
 
 (defun header-value (headers name)
   (gethash name headers))
 
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (header-value headers "upgrade"))
-                 (connection (header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
+(defun parse-request-body-string (input content-length)
+  "リクエストボディを読み取って文字列として返す"
+  (when (and input content-length (> content-length 0))
+        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
+          (read-sequence buffer input)
+          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
 
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (header-value headers "upgrade"))
-                 (connection (header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
+(defun safe-parse-json (json-string)
+  "Parse JSON safely. Returns plist or :invalid."
+  (handler-case
+      (jonathan:parse json-string :keywordize t)
+    (error (e)
+      (format *error-output* "JSON parse error: ~A~%" e)
+      :invalid)))
 
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /")))
+(defun parse-query-string-alist (qs)
+  "クエリ文字列をALISTに変換"
+  (when qs
+        (mapcar (lambda (pair)
+                  (destructuring-bind (k v)
+                      (uiop:split-string pair :separator "=")
+                    (cons k v)))
+            (uiop:split-string qs :separator "&"))))
 
-(defmacro with-api-response ((result) &body body)
-  "共通のAPIレスポンスラッパ。結果が :invalid ならエラーレスポンスを返す。
-   そうでなければ body を評価して正常レスポンスを返す。"
-  `(let ((res ,result))
-     (if (eq res :invalid)
-         `(400 (:content-type "application/json")
-               (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
-         (progn ,@body))))
+(defun parse-query-string-plist (qs)
+  "クエリ文字列を PLIST に変換"
+  (when qs
+        (apply #'append
+          (mapcar (lambda (pair)
+                    (destructuring-bind (k v)
+                        (uiop:split-string pair :separator "=")
+                      (list (intern (string-upcase k) :keyword) v)))
+              (uiop:split-string qs :separator "&")))))
 
-
-(defroute-http "/users"
-               (let ((users (controllers.users:get-users)))
-                 (if (eq users :invalid)
-                     ;; エラー時
-                     `(400 (:content-type "application/json")
-                           (list ,(jonathan:to-json '((:status "error" :message "invalid")))))
-                     ;; 正常時
-                     `(200 (:content-type "application/json")
-                           (list ,(jonathan:to-json users))))))
-
-(defroute-http "/user"
-               (let* ((qs (getf env :query-string))
-                      (params (utils:parse-query-string-plist qs))
-                      (user (controllers.users:get-user params)))
-                 (cond
-                  ;; エラーをまとめて統一
-                  ((eq user :invalid)
-                    `(400 (:content-type "application/json")
-                          (list ,(jonathan:to-json '((:status "error" :message "invalid"))))))
-                  ;; 正常時
-                  (t
-                    `(200 (:content-type "application/json")
-                          (list ,(jonathan:to-json user)))))))
-
-(defroute-http "/create-user"
-               (let* ((headers (getf env :headers))
-                      (content-length (parse-integer (or (header-value headers "content-length") "0")
-                                                     :junk-allowed t))
-                      (input (getf env :raw-body))
-                      (body-string (utils:parse-request-body-string input content-length))
-                      (result (controllers.users:create-user body-string)))
-                 (cond
-                  ((eq result :success)
-                    `(200 (:content-type "application/json")
-                          (,(jonathan:to-json '(("status" . "success"))))))
-                  (t
-                    `(500 (:content-type "application/json")
-                          ("{\"status\":\"error\"}"))))))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
-
-(defun start-app (&key (port 5000))
-  (clack:clackup *my-app* :server :woo :port port))
-
-; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user  
+(defun extract-json-params (env)
+  "env からリクエストボディを取り出して JSON を plist に変換する。
+   パースに失敗したら :invalid を返す。"
+  (with-invalid
+   (let* ((headers (getf env :headers))
+          (content-length (parse-integer
+                            (or (header-value headers "content-length") "0")
+                            :junk-allowed t))
+          (input (getf env :raw-body))
+          (body-string (utils:parse-request-body-string input content-length))
+          (params (utils:safe-parse-json body-string)))
+     params)))

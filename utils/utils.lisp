@@ -2,9 +2,12 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value))
 
 (in-package :utils)
+
+(defun header-value (headers name)
+  (gethash name headers))
 
 (defun parse-request-body-string (input content-length)
   "リクエストボディを読み取って文字列として返す"
@@ -14,14 +17,14 @@
           (flexi-streams:octets-to-string buffer :external-format :utf-8))))
 
 (defun safe-parse-json (json-string)
-  "Parse JSON safely. Returns parsed data or (:error <message>)."
+  "Parse JSON safely. Returns plist or :invalid."
   (handler-case
       (jonathan:parse json-string :keywordize t)
     (error (e)
-      ;; 失敗したら (:error "メッセージ") を返す
-      (list :error (format nil "~A" e)))))
+      (format *error-output* "JSON parse error: ~A~%" e)
+      :invalid)))
 
-(defun parse-query-string (qs)
+(defun parse-query-string-alist (qs)
   "クエリ文字列をALISTに変換"
   (when qs
         (mapcar (lambda (pair)
@@ -39,3 +42,16 @@
                         (uiop:split-string pair :separator "=")
                       (list (intern (string-upcase k) :keyword) v)))
               (uiop:split-string qs :separator "&")))))
+
+(defun extract-json-params (env)
+  "env からリクエストボディを取り出して JSON を plist に変換する。
+   パースに失敗したら :invalid を返す。"
+  (with-invalid
+   (let* ((headers (getf env :headers))
+          (content-length (parse-integer
+                            (or (header-value headers "content-length") "0")
+                            :junk-allowed t))
+          (input (getf env :raw-body))
+          (body-string (utils:parse-request-body-string input content-length))
+          (params (utils:safe-parse-json body-string)))
+     params)))

@@ -12,7 +12,7 @@
 (defun get-users ()
   (postmodern:query
    "SELECT id, uid, name, img, created_at, updated_at FROM users"
-   :rows :plist))
+   :rows :plists))
 
 (defun create-user (uid name &optional (img nil))
   "Insert a new user into the users table. Returns :success or an error keyword."
