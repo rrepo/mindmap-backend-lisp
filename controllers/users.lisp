@@ -16,6 +16,7 @@
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (uid (getf params :UID)))
+     (format *standard-output* "uid: ~A~%" uid)
      (when (and uid (not (string= uid "")))
            (models.users:get-user uid)))))
 
@@ -29,5 +30,3 @@
      (when (and uid name)
            (models.users:create-user uid name img)
            :success))))
-
-           

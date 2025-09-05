@@ -1,6 +1,6 @@
 (defpackage :websocket-app
   (:use :cl :clack :websocket-driver)
-  (:export :start-app))
+  (:export :start-app :*my-app*))
 
 (in-package :websocket-app)
 
@@ -45,9 +45,6 @@
                       (funcall handler env)
                       '(404 (:content-type "text/plain") ("Not Found"))))))))
 
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /")))
-
 (defmacro with-api-response (result)
   `(let ((res ,result))
      (cond
@@ -60,6 +57,9 @@
                  (list :status "success"
                        :data (if (eq res :success) :null res)))))))))
 
+(defroute-http "/"
+               '(200 (:content-type "text/plain") ("Hello from /")))
+
 (defroute-http "/users"
                (with-api-response (controllers.users:get-users)))
 
@@ -67,6 +67,9 @@
                (with-api-response (controllers.users:get-user env)))
 
 (defroute-http "/create-user"
+               (with-api-response (controllers.users:create-user env)))
+
+(defroute-http "/delete-user"
                (with-api-response (controllers.users:create-user env)))
 
 (defroute-ws "/websocket"
