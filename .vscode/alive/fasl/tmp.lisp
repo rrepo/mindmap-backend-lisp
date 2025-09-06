@@ -1,84 +1,44 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver)
-  (:export :start-app :*my-app*))
+(defpackage :models.users
+  (:use :cl :postmodern)
+  (:export get-user get-all-users get-users create-user update-user delete-user))
 
-(in-package :websocket-app)
+(in-package :models.users)
 
-(load "./controllers/users.lisp")
-(load "./utils/utils.lisp")
+(defun get-user (uid)
+  (postmodern:query
+   "SELECT uid, name, img FROM users WHERE uid = $1"
+   uid :rows :plist))
 
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
+(defun get-users (uids)
+  (postmodern:query
+   (:select 'uid 'name 'img
+          :from 'users
+            :where (:in 'uid (:set uids)))
+   :plists))
 
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
-         ,@body
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
+(defun get-all-users ()
+  (postmodern:query
+   "SELECT id, uid, name, img, created_at, updated_at FROM users"
+   :rows :plists))
 
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
+(defun create-user (uid name &optional (img nil))
+  "Insert a new user into the users table. Returns :success or an error keyword."
+  (postmodern:execute
+   "INSERT INTO users (uid, name, img)
+          VALUES ($1, $2, $3)"
+   uid name img)
+  :success :rows :plist)
 
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (utils:header-value headers "upgrade"))
-                 (connection (utils:header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
+(defun update-user (uid new-name new-img)
+  "Update the name and img of a user identified by UID."
+  (postmodern:execute
+   "UPDATE users
+    SET name = $1,
+        img = $2
+    WHERE uid = $3"
+   new-name new-img uid) :rows :plist)
 
-(defmacro with-api-response (result)
-  `(let ((res ,result))
-     (cond
-      ((eq res :invalid)
-        `(400 (:content-type "application/json")
-              (,(jonathan:to-json '(:status "error")))))
-      (t
-        `(200 (:content-type "application/json")
-              (,(jonathan:to-json
-                 (list :status "success"
-                       :data (if (eq res :success) :null res)))))))))
-
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /")))
-
-(defroute-http "/users"
-               (with-api-response (controllers.users:get-users)))
-
-(defroute-http "/user"
-               (with-api-response (controllers.users:get-user env)))
-
-(defroute-http "/create-user"
-               (with-api-response (controllers.users:create-user env)))
-
-(defroute-http "/delete-user"
-               (with-api-response (controllers.users:create-user env)))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
-
-(defun start-app (&key (port 5000))
-  (clack:clackup *my-app* :server :woo :port port))
-
-; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user  
+(defun delete-user (uid)
+  (postmodern:execute
+   "DELETE FROM users WHERE uid = $1"
+   uid) :rows :plist)

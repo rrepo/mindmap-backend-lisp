@@ -60,11 +60,14 @@
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /")))
 
+(defroute-http "/user"
+               (with-api-response (controllers.users:get-users env)))
+
 (defroute-http "/users"
                (with-api-response (controllers.users:get-users)))
 
-(defroute-http "/user"
-               (with-api-response (controllers.users:get-user env)))
+(defroute-http "/all-users"
+               (with-api-response (controllers.users:get-all-users)))
 
 (defroute-http "/create-user"
                (with-api-response (controllers.users:create-user env)))

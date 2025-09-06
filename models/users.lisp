@@ -1,6 +1,6 @@
 (defpackage :models.users
   (:use :cl :postmodern)
-  (:export get-user get-users create-user update-user delete-user))
+  (:export get-user get-all-users get-users create-user update-user delete-user))
 
 (in-package :models.users)
 
@@ -9,7 +9,14 @@
    "SELECT uid, name, img FROM users WHERE uid = $1"
    uid :rows :plist))
 
-(defun get-users ()
+(defun get-users (uids)
+  (postmodern:query
+   (:select 'uid 'name 'img
+          :from 'users
+            :where (:in 'uid (:set uids)))
+   :plists))
+
+(defun get-all-users ()
   (postmodern:query
    "SELECT id, uid, name, img, created_at, updated_at FROM users"
    :rows :plists))
