@@ -72,6 +72,9 @@
 (defroute-http "/create-user"
                (with-api-response (controllers.users:create-user env)))
 
+(defroute-http "/update-user"
+               (with-api-response (controllers.users:update-user env)))
+
 (defroute-http "/delete-user"
                (with-api-response (controllers.users:create-user env)))
 

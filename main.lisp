@@ -36,3 +36,5 @@
 ;      -H "Content-Type: application/json" \
 ;      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}' \
 ;      http://localhost:5000/create-user
+
+; curl -X POST -H "Content-Type: application/json" -d '{"uid":"22fdd" , "name":"Tfff" , "img":"http://example.com" }' http://localhost:5000/update-user

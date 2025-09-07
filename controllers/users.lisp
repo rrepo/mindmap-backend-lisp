@@ -1,6 +1,6 @@
 (defpackage :controllers.users
   (:use :cl :jonathan)
-  (:export get-all-users get-user get-users create-user))
+  (:export get-all-users get-user get-users create-user update-user))
 
 (load "./models/users.lisp")
 (load "./utils/utils.lisp")
@@ -48,3 +48,14 @@
      (when (and uid name)
            (models.users:create-user uid name img)
            :success))))
+
+(defun update-user (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|))
+          (img (getf params :|img|)))
+     (format *error-output* "Update params: uid=~A, name=~A, img=~A~%" uid name img)
+     (models.users:update-user uid :name name :img img)
+     :success)))

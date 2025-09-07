@@ -2,7 +2,7 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param))
 
 (in-package :utils)
 

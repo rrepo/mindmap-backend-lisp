@@ -29,14 +29,18 @@
    uid name img)
   :success :rows :plist)
 
-(defun update-user (uid new-name new-img)
-  "Update the name and img of a user identified by UID."
-  (postmodern:execute
-   "UPDATE users
-    SET name = $1,
-        img = $2
-    WHERE uid = $3"
-   new-name new-img uid) :rows :plist)
+(defun update-user (uid &key name img)
+  (when (or name img)
+        (cond
+         ((and name img)
+           (postmodern:execute "UPDATE users SET name = $2, img = $3, updated_at = NOW() WHERE uid = $1"
+                               uid name img))
+         (name
+           (postmodern:execute "UPDATE users SET name = $2, updated_at = NOW() WHERE uid = $1"
+                               uid name))
+         (img
+           (postmodern:execute "UPDATE users SET img = $2, updated_at = NOW() WHERE uid = $1"
+                               uid img)))))
 
 (defun delete-user (uid)
   (postmodern:execute
