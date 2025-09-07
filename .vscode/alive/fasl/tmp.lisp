@@ -1,44 +1,50 @@
-(defpackage :models.users
-  (:use :cl :postmodern)
-  (:export get-user get-all-users get-users create-user update-user delete-user))
+(defpackage :controllers.users
+  (:use :cl :jonathan)
+  (:export get-all-users get-user get-users create-user))
 
-(in-package :models.users)
+(load "./models/users.lisp")
+(load "./utils/utils.lisp")
 
-(defun get-user (uid)
-  (postmodern:query
-   "SELECT uid, name, img FROM users WHERE uid = $1"
-   uid :rows :plist))
+(in-package :controllers.users)
 
-(defun get-users (uids)
-  (postmodern:query
-   (:select 'uid 'name 'img
-          :from 'users
-            :where (:in 'uid (:set uids)))
-   :plists))
+(defun get-user (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (uid (getf params :UID)))
+     (when (and uid (not (string= uid "")))
+           (models.users:get-user uid)))))
+
+(defun get-users (env)
+  "配列パラメータ形式を処理"
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs)))
+     (let ((uid-values '()))
+       (loop for (key value) on params by #'cddr do
+               (when (or (eq key :UID)
+                         (and (stringp (symbol-name key))
+                              (search "UID" (symbol-name key))))
+                     (push value uid-values)))
+
+       (let ((uids (nreverse (remove-if (lambda (uid) (or (null uid) (string= uid ""))) uid-values))))
+         (format *error-output* "Array UIDs: ~A~%" uids)
+         (when uids
+               (if (= (length uids) 1)
+                   (list (models.users:get-user (first uids)))
+                   (models.users:get-users uids))))))))
 
 (defun get-all-users ()
-  (postmodern:query
-   "SELECT id, uid, name, img, created_at, updated_at FROM users"
-   :rows :plists))
+  (utils:with-invalid
+   (models.users:get-all-users)))
 
-(defun create-user (uid name &optional (img nil))
-  "Insert a new user into the users table. Returns :success or an error keyword."
-  (postmodern:execute
-   "INSERT INTO users (uid, name, img)
-          VALUES ($1, $2, $3)"
-   uid name img)
-  :success :rows :plist)
-
-(defun update-user (uid new-name new-img)
-  "Update the name and img of a user identified by UID."
-  (postmodern:execute
-   "UPDATE users
-    SET name = $1,
-        img = $2
-    WHERE uid = $3"
-   new-name new-img uid) :rows :plist)
-
-(defun delete-user (uid)
-  (postmodern:execute
-   "DELETE FROM users WHERE uid = $1"
-   uid) :rows :plist)
+(defun create-user (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|))
+          (img (getf params :|img|)))
+     (when (and uid name)
+           (models.users:create-user uid name img)
+           :success))))

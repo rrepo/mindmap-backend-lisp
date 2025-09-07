@@ -61,10 +61,10 @@
                '(200 (:content-type "text/plain") ("Hello from /")))
 
 (defroute-http "/user"
-               (with-api-response (controllers.users:get-users env)))
+               (with-api-response (controllers.users:get-user env)))
 
 (defroute-http "/users"
-               (with-api-response (controllers.users:get-users)))
+               (with-api-response (controllers.users:get-users env)))
 
 (defroute-http "/all-users"
                (with-api-response (controllers.users:get-all-users)))
