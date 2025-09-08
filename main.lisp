@@ -18,8 +18,11 @@
 (load "./utils/utils.lisp")
 (init-db-utils:init-db)
 
+(defvar *failed-files* nil)
+
 (defun safe-load (file)
-  "ファイルを安全にロードし、警告は表示だけ、エラーは失敗扱いにする"
+  "ファイルを安全にロードし、警告は表示だけ、エラーは失敗扱いにする。
+   失敗した場合は *FAILED-FILES* に記録する。"
   (let ((ok t))
     (handler-bind
         ((warning
@@ -30,7 +33,8 @@
          (error
              (lambda (e)
                (format t "✗ Error loading ~A: ~A~%" file e)
-               ;; エラーが出たら失敗扱いにする
+               ;; 失敗リストに追加
+               (push (list file e) *failed-files*)
                (setf ok nil)
                (return-from safe-load nil))))
       (load file))
@@ -38,10 +42,11 @@
           (format t "✓ Successfully loaded: ~A~%" file)
           t)))
 
-
 (defun reload-files ()
-  "全てのファイルを安全にリロード。成功なら T, エラーがあれば NIL を返す"
+  "全てのファイルを安全にリロード。
+   成功なら T と NIL を返し、エラーがあれば NIL と *FAILED-FILES* を返す。"
   (format t "~%=== Reloading files ===~%")
+  (setf *failed-files* nil) ;; リセット
   (let ((results
          (mapcar #'safe-load
            '("./models/initsql.lisp"
@@ -54,25 +59,38 @@
     (if (every #'identity results)
         (progn
          (format t "=== Reload complete (OK) ===~%~%")
-         t)
+         (values t nil))
         (progn
          (format t "=== Reload complete (WITH ERRORS) ===~%~%")
-         nil))))
+         (values nil (reverse *failed-files*))))))
 
 (defun dev-app-with-reload (env)
-  "リクエストごとにファイルをリロードするWebアプリケーション"
   (handler-case
-      (progn
-       ;; 開発モードでは毎回リロード
-       (reload-files)
-       ;; 実際のアプリケーション関数を呼び出し
-       (funcall websocket-app::*my-app* env))
+      (multiple-value-bind (ok failed-files) (reload-files)
+        (if ok
+            ;; リロード成功 → 新しいアプリで動作
+            (progn
+             (setf *last-good-app* websocket-app::*my-app*)
+             (funcall *last-good-app* env))
+            ;; リロード失敗 → 古いアプリで動かしつつ、レスポンスにも通知
+            (progn
+             (format t "✗ Reload failed in files: ~A~%" failed-files)
+             (if *last-good-app*
+                 ;; 古いアプリを使うが、レスポンスに失敗情報を返す
+                 `(500
+                   (:content-type "text/plain")
+                   (,(format nil "Reload failed in files:~%~{ - ~A : ~A~%~}"
+                       (mapcar (lambda (f)
+                                 (list (first f) (second f)))
+                           failed-files))))
+                 ;; 最初から動いてない場合
+                 '(500
+                   (:content-type "text/plain")
+                   ("No working app available (reload failed)"))))))
     (error (condition)
       (format t "✗ Error in dev-app: ~A~%" condition)
-      ;; エラーページを返す
-      '(500
-        (:content-type "text/plain")
-        ("Internal Server Error - Check console for details")))))
+      '(500 (:content-type "text/plain")
+            ("Internal Server Error - Check console for details")))))
 
 (defun start-dev-app-safe (&key (port 5000))
   "エラーハンドリング付きの開発サーバー起動"
@@ -90,23 +108,6 @@
   (reload-files))
 
 (start-dev-app-safe)
-
-
-; (defun dev-app (env)
-;   (load "./models/initsql.lisp")
-;   (load "./models/users.lisp")
-;   (load "./models/maps.lisp")
-;   (load "./controllers/server.lisp")
-;   (load "./controllers/users.lisp")
-;   (load "./controllers/mindmaps.lisp")
-;   (load "./utils/utils.lisp")
-;   (funcall websocket-app::*my-app* env))
-
-; ; リクエストのたびにリロードする
-; (defun start-dev-app (&key (port 5000))
-;   (clack:clackup #'dev-app :server :woo :port port))
-
-; (start-dev-app)
 
 ; (print (websocket-app:start-app :port 5000))
 

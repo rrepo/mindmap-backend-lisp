@@ -36,7 +36,7 @@
 
 (defun get-all-users ()
   (utils:with-invalid
-   (format *error-output* "Get all users called~%")
+  (format *error-output* "Get all users called~%")
    (models.users:get-all-users)))
 
 (defun create-user (env)
@@ -60,3 +60,4 @@
      (format *error-output* "Update params: uid=~A, name=~A, img=~A~%" uid name img)
      (models.users:update-user uid :name name :img img)
      :success)))
+

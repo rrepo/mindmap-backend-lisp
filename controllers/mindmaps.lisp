@@ -8,6 +8,6 @@
 (in-package :controllers.mindmaps)
 
 (defun get-all-maps ()
-  (format *error-output* "Controller: get-all-maps ca!!!!ed~%")
+  (format *error-output* "Controller: get-all-maps call!!!!ed~%")
   (utils:with-invalid
    (models.maps:get-all-maps)))
