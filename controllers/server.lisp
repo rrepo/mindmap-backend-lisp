@@ -5,6 +5,7 @@
 (in-package :websocket-app)
 
 (load "./controllers/users.lisp")
+(load "./controllers/mindmaps.lisp")
 (load "./utils/utils.lisp")
 
 (defmacro defroute-http (path &body body)
@@ -77,6 +78,9 @@
 
 (defroute-http "/delete-user"
                (with-api-response (controllers.users:create-user env)))
+
+(defroute-http "/all-maps"
+               (with-api-response (controllers.mindmaps:get-all-maps)))
 
 (defroute-ws "/websocket"
              (on :message ws

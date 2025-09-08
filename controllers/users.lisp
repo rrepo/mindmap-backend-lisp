@@ -36,6 +36,7 @@
 
 (defun get-all-users ()
   (utils:with-invalid
+   (format *error-output* "Get all users called~%")
    (models.users:get-all-users)))
 
 (defun create-user (env)

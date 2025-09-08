@@ -46,3 +46,4 @@
   (postmodern:execute
    "DELETE FROM users WHERE uid = $1"
    uid) :rows :plist)
+

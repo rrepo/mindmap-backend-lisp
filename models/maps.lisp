@@ -1,7 +1,7 @@
 (defpackage :models.maps
   (:use :cl :postmodern)
   (:export get-map
-           get-maps
+           get-all-maps
            get-maps-by-user-uid
            create-map
            update-map
@@ -15,14 +15,14 @@
    "SELECT id, title, owner_uid, visibility, created_at, updated_at
     FROM maps
     WHERE id = $1"
-   id))
+   id :rows :plist))
 
-(defun get-maps ()
+(defun get-all-maps ()
   "Fetch all maps."
   (postmodern:query
    "SELECT id, title, owner_uid, visibility, created_at, updated_at
     FROM maps"
-   :rows))
+   :rows :plists))
 
 (defun get-maps-by-user-uid (owner-uid)
   "Fetch all maps belonging to a user specified by owner UID."
@@ -31,7 +31,7 @@
     FROM maps
     WHERE owner_uid = $1"
    owner-uid
-   :rows))
+   :rows :plist))
 
 (defun create-map (title owner-uid &optional (visibility "public"))
   "Insert a new map."
