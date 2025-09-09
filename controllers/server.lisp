@@ -97,6 +97,15 @@
 (defroute-http "/delete-map"
                (with-api-response (controllers.mindmaps:delete-map env)))
 
+(defroute-http "/all-nodes"
+               (with-api-response (controllers.mindmaps:get-all-nodes)))
+
+(defroute-http "/create-node"
+               (with-api-response (controllers.mindmaps:create-node env)))
+
+(defroute-http "/delete-node"
+               (with-api-response (controllers.mindmaps:delete-node env)))
+
 (defroute-ws "/websocket"
              (on :message ws
                  (lambda (msg)

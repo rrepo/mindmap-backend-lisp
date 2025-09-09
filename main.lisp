@@ -12,6 +12,7 @@
 (load "./models/initsql.lisp")
 (load "./models/users.lisp")
 (load "./models/maps.lisp")
+(load "./models/nodes.lisp")
 (load "./controllers/server.lisp")
 (load "./controllers/users.lisp")
 (load "./controllers/mindmaps.lisp")
@@ -52,6 +53,7 @@
            '("./models/initsql.lisp"
              "./models/users.lisp"
              "./models/maps.lisp"
+             "./models/nodes.lisp"
              "./controllers/server.lisp"
              "./controllers/users.lisp"
              "./controllers/mindmaps.lisp"

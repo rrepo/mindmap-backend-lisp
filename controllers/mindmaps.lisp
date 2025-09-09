@@ -1,8 +1,9 @@
 (defpackage :controllers.mindmaps
   (:use :cl :jonathan)
-  (:export get-all-maps get-map create-map update-map delete-map))
+  (:export get-all-maps get-map create-map update-map delete-map get-all-nodes create-node delete-node))
 
 (load "./models/maps.lisp")
+(load "./models/nodes.lisp")
 (load "./utils/utils.lisp")
 
 (in-package :controllers.mindmaps)
@@ -13,7 +14,13 @@
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
-           (models.maps:get-map id)))))
+           (let* ((map (models.maps:get-map id))
+                  (nodes (models.nodes:get-nodes-by-map-id id)))
+             (format *error-output* "Map: ~A~%" map)
+             (format *error-output* "nodes: ~A~%" nodes)
+             ;; map は plist なので append で nodes を追加
+             (append map (list :nodes nodes)))))))
+
 
 (defun get-all-maps ()
   (utils:with-invalid
@@ -50,3 +57,28 @@
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (models.maps:delete-map id)))))
+
+(defun get-all-nodes ()
+  (utils:with-invalid
+   (let* ((nodes (models.nodes:get-all-nodes)))
+     (format *error-output* "All nodes: ~A~%" nodes)
+     nodes)))
+
+(defun create-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (map-id (getf params :|map-id|))
+          (parent-id (getf params :|parent-id|))
+          (uid (getf params :|uid|))
+          (content (getf params :|content|)))
+     (when (and map-id content uid)
+           (models.nodes:create-node map-id parent-id content uid)
+           :success))))
+
+(defun delete-node (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node id)))))
