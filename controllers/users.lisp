@@ -1,6 +1,6 @@
 (defpackage :controllers.users
   (:use :cl :jonathan)
-  (:export get-all-users get-user get-users create-user update-user))
+  (:export get-all-users get-user get-users create-user update-user delete-user))
 
 (load "./models/users.lisp")
 (load "./utils/utils.lisp")
@@ -36,7 +36,7 @@
 
 (defun get-all-users ()
   (utils:with-invalid
-  (format *error-output* "Get all users called~%")
+   (format *error-output* "Get all users called~%")
    (models.users:get-all-users)))
 
 (defun create-user (env)
@@ -61,3 +61,11 @@
      (models.users:update-user uid :name name :img img)
      :success)))
 
+(defun delete-user (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (uid (getf params :UID)))
+     (format *error-output* "Delete params: uid=~A~%" uid)
+     (when (and uid (not (string= uid "")))
+           (models.users:delete-user uid)))))

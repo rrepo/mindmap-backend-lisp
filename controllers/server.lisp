@@ -80,7 +80,7 @@
                (with-api-response (controllers.users:update-user env)))
 
 (defroute-http "/delete-user"
-               (with-api-response (controllers.users:create-user env)))
+               (with-api-response (controllers.users:delete-user env)))
 
 (defroute-http "/get-map"
                (with-api-response (controllers.mindmaps:get-map env)))

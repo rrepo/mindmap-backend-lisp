@@ -1,52 +1,49 @@
-(defpackage :controllers.mindmaps
-  (:use :cl :jonathan)
-  (:export get-all-maps get-map create-map update-map delete-map))
+(defpackage :models.users
+  (:use :cl :postmodern)
+  (:export get-user get-all-users get-users create-user update-user delete-user))
 
-(load "./models/maps.lisp")
-(load "./utils/utils.lisp")
+(in-package :models.users)
 
-(in-package :controllers.mindmaps)
+(defun get-user (uid)
+  (postmodern:query
+   "SELECT uid, name, img FROM users WHERE uid = $1"
+   uid :rows :plist))
 
-(defun get-map (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:get-map id)))))
+(defun get-users (uids)
+  (postmodern:query
+   (:select 'uid 'name 'img
+          :from 'users
+            :where (:in 'uid (:set uids)))
+   :plists))
 
-(defun get-all-maps ()
-  (utils:with-invalid
-   (let* ((maps (models.maps:get-all-maps)))
-     maps)))
+(defun get-all-users ()
+  (postmodern:query
+   "SELECT id, uid, name, img, created_at, updated_at FROM users"
+   :rows :plists))
 
-(defun create-map (env)
-  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (title (getf params :|title|))
-          (uid (getf params :|uid|))
-          (visibility (getf params :|visibility|)))
-     (when (and title uid visibility)
-           (models.maps:create-map title uid visibility)
-           :success))))
+(defun create-user (uid name &optional (img nil))
+  "Insert a new user into the users table. Returns :success or an error keyword."
+  (postmodern:execute
+   "INSERT INTO users (uid, name, img)
+          VALUES ($1, $2, $3)"
+   uid name img)
+  :success :rows :plist)
 
-(defun update-map (env)
-  (utils:with-invalid
-   (format *error-output* "Update user called~%")
-   (let* ((params (utils:extract-json-params env))
-          (id (getf params :|id|))
-          (uid (getf params :|uid|))
-          (title (getf params :|title|))
-          (visibility (getf params :|visibility|)))
-     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
-     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
-     :success)))
+(defun update-user (uid &key name img)
+  (when (or name img)
+        (cond
+         ((and name img)
+           (postmodern:execute "UPDATE users SET name = $2, img = $3, updated_at = NOW() WHERE uid = $1"
+                               uid name img))
+         (name
+           (postmodern:execute "UPDATE users SET name = $2, updated_at = NOW() WHERE uid = $1"
+                               uid name))
+         (img
+           (postmodern:execute "UPDATE users SET img = $2, updated_at = NOW() WHERE uid = $1"
+                               uid img)))))
 
-(defun delete-map (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:delete-map id)))))
+(defun delete-user (uid)
+  (postmodern:execute
+   "DELETE FROM users WHERE uid = $1"
+   uid) :rows :plist)
+

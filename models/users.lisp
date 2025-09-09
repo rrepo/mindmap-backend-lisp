@@ -42,8 +42,8 @@
            (postmodern:execute "UPDATE users SET img = $2, updated_at = NOW() WHERE uid = $1"
                                uid img)))))
 
-(defun delete-user (id)
+(defun delete-user (uid)
   (postmodern:execute
-   "DELETE FROM maps WHERE uid = $1"
-   id) :rows :plist)
+   "DELETE FROM users WHERE uid = $1"
+   uid) :rows :plist)
 
