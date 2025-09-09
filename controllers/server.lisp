@@ -49,14 +49,17 @@
 (defmacro with-api-response (result)
   `(let ((res ,result))
      (cond
+      ((null res) ;; データなし
+                 `(200 (:content-type "application/json")
+                       (,(jonathan:to-json '(:status "success" :data ())))))
       ((eq res :invalid)
         `(400 (:content-type "application/json")
               (,(jonathan:to-json '(:status "error")))))
       (t
         `(200 (:content-type "application/json")
               (,(jonathan:to-json
-                 (list :status "success"
-                       :data (if (eq res :success) :null res)))))))))
+                 (list :status "success" :data res))))))))
+
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /")))

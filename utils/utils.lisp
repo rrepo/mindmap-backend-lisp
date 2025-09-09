@@ -45,11 +45,11 @@
 
 (defmacro with-invalid (&body body)
   `(handler-case
-       (or (progn ,@body)
-           :invalid)
+       (progn ,@body) ; ← そのまま返す。nilはnilのまま
      (error (e)
        (format *error-output* "ERROR: ~A~%" e)
        :invalid)))
+
 
 (defun extract-json-params (env)
   "env からリクエストボディを取り出して JSON を plist に変換する。
