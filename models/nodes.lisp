@@ -1,6 +1,6 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node delete-node))
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node))
 
 (in-package :models.nodes)
 
@@ -29,6 +29,32 @@ If parent-id is NIL, insert NULL instead."
    (if parent-id parent-id :null)
    content
    user-uid))
+
+(defun update-node (id &key content parent-id parent-id-specified-p)
+  "Update only the given fields of a node.
+If PARENT-ID is explicitly NIL and PARENT-ID-SPECIFIED-P is T, set parent_id to NULL."
+  (let ((sets '())
+        (params '()))
+    ;; content が指定されていれば更新対象に追加
+    (when content
+          (push "content = $~a" sets)
+          (push content params))
+    ;; parent-id が指定されていれば更新対象に追加
+    (when parent-id-specified-p
+          (push "parent_id = $~a" sets)
+          (push parent-id params)) ;; NIL が来ればそのまま NULL にマッピングされる
+
+    ;; 実際のクエリを組み立てて実行
+    (when sets
+          (postmodern:execute
+           (format nil
+               "UPDATE nodes SET ~{~a~^, ~} WHERE id = $~a"
+             (loop for i from 1
+                   for set in (reverse sets)
+                   collect (format nil set i))
+             (+ (length params) 1))
+           (append (reverse params) (list id))))))
+
 
 (defun delete-node (id)
   "Delete a map by its ID."

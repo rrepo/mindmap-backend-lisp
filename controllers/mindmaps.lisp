@@ -1,6 +1,6 @@
 (defpackage :controllers.mindmaps
   (:use :cl :jonathan)
-  (:export get-all-maps get-map create-map update-map delete-map get-all-nodes create-node delete-node))
+  (:export get-all-maps get-map create-map update-map delete-map get-all-nodes create-node update-node delete-node))
 
 (load "./models/maps.lisp")
 (load "./models/nodes.lisp")
@@ -20,7 +20,6 @@
              (format *error-output* "nodes: ~A~%" nodes)
              ;; map は plist なので append で nodes を追加
              (append map (list :nodes nodes)))))))
-
 
 (defun get-all-maps ()
   (utils:with-invalid
@@ -74,6 +73,26 @@
      (when (and map-id content uid)
            (models.nodes:create-node map-id parent-id content uid)
            :success))))
+
+(defun update-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          ;; parent-id がクエリに含まれているかどうかを判定
+          (has-parent-id (not (null (member :|parent-id| params))))
+          (parent-id (when has-parent-id
+                           (getf params :|parent-id|)))
+          (content (getf params :|content|)))
+     (format *error-output*
+         "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
+       id has-parent-id parent-id content)
+     (when id
+           (models.nodes:update-node id
+                                     ;; parent-id が明示的に指定されている場合だけ渡す
+                                     :parent-id (when has-parent-id parent-id)
+                                     :content content)
+           :success))))
+
 
 (defun delete-node (env)
   (utils:with-invalid

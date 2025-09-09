@@ -103,6 +103,9 @@
 (defroute-http "/create-node"
                (with-api-response (controllers.mindmaps:create-node env)))
 
+(defroute-http "/update-node"
+               (with-api-response (controllers.mindmaps:update-node env)))
+
 (defroute-http "/delete-node"
                (with-api-response (controllers.mindmaps:delete-node env)))
 
