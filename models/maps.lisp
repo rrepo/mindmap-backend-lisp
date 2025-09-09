@@ -40,16 +40,52 @@
     VALUES ($1, $2, $3)"
    title owner-uid visibility))
 
-(defun update-map (id new-title new-owner-uid new-visibility)
-  "Update title, owner_uid, and visibility of a map."
-  (postmodern:execute
-   "UPDATE maps
-    SET title = $1,
-        owner_uid = $2,
-        visibility = $3,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = $4"
-   new-title new-owner-uid new-visibility id))
+(defun update-map (id &key title owner-uid visibility)
+  "Update only the given fields of a map."
+  (when (or title owner-uid visibility)
+        (cond
+         ;; すべて指定された場合
+         ((and title owner-uid visibility)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, owner_uid = $3, visibility = $4, updated_at = NOW() WHERE id = $1"
+            id title owner-uid visibility))
+
+         ;; title + owner-uid
+         ((and title owner-uid)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, owner_uid = $3, updated_at = NOW() WHERE id = $1"
+            id title owner-uid))
+
+         ;; title + visibility
+         ((and title visibility)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, visibility = $3, updated_at = NOW() WHERE id = $1"
+            id title visibility))
+
+         ;; owner-uid + visibility
+         ((and owner-uid visibility)
+           (postmodern:execute
+            "UPDATE maps SET owner_uid = $2, visibility = $3, updated_at = NOW() WHERE id = $1"
+            id owner-uid visibility))
+
+         ;; title だけ
+         (title
+           (postmodern:execute
+            "UPDATE maps SET title = $2, updated_at = NOW() WHERE id = $1"
+            id title))
+
+         ;; owner-uid だけ
+         (owner-uid
+           (postmodern:execute
+            "UPDATE maps SET owner_uid = $2, updated_at = NOW() WHERE id = $1"
+            id owner-uid))
+
+         ;; visibility だけ
+         (visibility
+           (postmodern:execute
+            "UPDATE maps SET visibility = $2, updated_at = NOW() WHERE id = $1"
+            id visibility)))))
+
 
 (defun delete-map (id)
   "Delete a map by its ID."

@@ -82,8 +82,20 @@
 (defroute-http "/delete-user"
                (with-api-response (controllers.users:create-user env)))
 
+(defroute-http "/get-map"
+               (with-api-response (controllers.mindmaps:get-map env)))
+
 (defroute-http "/all-maps"
                (with-api-response (controllers.mindmaps:get-all-maps)))
+
+(defroute-http "/create-map"
+               (with-api-response (controllers.mindmaps:create-map env)))
+
+(defroute-http "/update-map"
+               (with-api-response (controllers.mindmaps:update-map env)))
+
+(defroute-http "/delete-map"
+               (with-api-response (controllers.mindmaps:delete-map env)))
 
 (defroute-ws "/websocket"
              (on :message ws

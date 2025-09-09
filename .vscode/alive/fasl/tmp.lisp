@@ -1,65 +1,52 @@
-(defpackage :utils
+(defpackage :controllers.mindmaps
   (:use :cl :jonathan)
-  (:import-from :cl-ppcre :split)
-  (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param))
+  (:export get-all-maps get-map create-map update-map delete-map))
 
-(in-package :utils)
+(load "./models/maps.lisp")
+(load "./utils/utils.lisp")
 
-(defun header-value (headers name)
-  (gethash name headers))
+(in-package :controllers.mindmaps)
 
-(defun parse-request-body-string (input content-length)
-  "リクエストボディを読み取って文字列として返す"
-  (when (and input content-length (> content-length 0))
-        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
-          (read-sequence buffer input)
-          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
+(defun get-map (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:get-map id)))))
 
-(defun safe-parse-json (json-string)
-  "Parse JSON safely. Returns plist or :invalid."
-  (handler-case
-      (jonathan:parse json-string :keywordize t)
-    (error (e)
-      (format *error-output* "JSON parse error: ~A~%" e)
-      :invalid)))
+(defun get-all-maps ()
+  (utils:with-invalid
+   (let* ((maps (models.maps:get-all-maps)))
+     maps)))
 
-(defun parse-query-string-alist (qs)
-  "クエリ文字列をALISTに変換"
-  (when qs
-        (mapcar (lambda (pair)
-                  (destructuring-bind (k v)
-                      (uiop:split-string pair :separator "=")
-                    (cons k v)))
-            (uiop:split-string qs :separator "&"))))
+(defun create-map (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (title (getf params :|title|))
+          (uid (getf params :|uid|))
+          (visibility (getf params :|visibility|)))
+     (when (and title uid visibility)
+           (models.maps:create-map title uid visibility)
+           :success))))
 
-(defun parse-query-string-plist (qs)
-  "クエリ文字列を PLIST に変換"
-  (when qs
-        (apply #'append
-          (mapcar (lambda (pair)
-                    (destructuring-bind (k v)
-                        (uiop:split-string pair :separator "=")
-                      (list (intern (string-upcase k) :keyword) v)))
-              (uiop:split-string qs :separator "&")))))
+(defun update-map (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          (uid (getf params :|uid|))
+          (title (getf params :|title|))
+          (visibility (getf params :|visibility|)))
+     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
+     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
+     :success)))
 
-(defmacro with-invalid (&body body)
-  `(handler-case
-       (progn ,@body) ; ← そのまま返す。nilはnilのまま
-     (error (e)
-       (format *error-output* "ERROR: ~A~%" e)
-       :invalid)))
-
-
-(defun extract-json-params (env)
-  "env からリクエストボディを取り出して JSON を plist に変換する。
-   パースに失敗したら :invalid を返す。"
-  (with-invalid
-   (let* ((headers (getf env :headers))
-          (content-length (parse-integer
-                            (or (header-value headers "content-length") "0")
-                            :junk-allowed t))
-          (input (getf env :raw-body))
-          (body-string (parse-request-body-string input content-length))
-          (params (safe-parse-json body-string)))
-     params)))
+(defun delete-map (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:delete-map id)))))
