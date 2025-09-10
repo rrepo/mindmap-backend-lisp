@@ -1,141 +1,77 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver)
-  (:export :start-app :*my-app*))
+(defpackage :utils
+  (:use :cl :jonathan)
+  (:import-from :cl-ppcre :split)
+  (:import-from :flexi-streams :octets-to-string)
+  (:import-from :ironclad :random-data)
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-hex))
 
-(in-package :websocket-app)
+(in-package :utils)
 
-(load "./controllers/users.lisp")
-(load "./controllers/maps.lisp")
-(load "./controllers/nodes.lisp")
-(load "./controllers/map-members.lisp")
-(load "./utils/utils.lisp")
+(defun header-value (headers name)
+  (gethash name headers))
 
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
+(defun parse-request-body-string (input content-length)
+  "リクエストボディを読み取って文字列として返す"
+  (when (and input content-length (> content-length 0))
+        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
+          (read-sequence buffer input)
+          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
 
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
-         ,@body
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
+(defun safe-parse-json (json-string)
+  "Parse JSON safely. Returns plist or :invalid."
+  (handler-case
+      (jonathan:parse json-string :keywordize t)
+    (error (e)
+      (format *error-output* "JSON parse error: ~A~%" e)
+      :invalid)))
 
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
+(defun parse-query-string-alist (qs)
+  "クエリ文字列をALISTに変換"
+  (when qs
+        (mapcar (lambda (pair)
+                  (destructuring-bind (k v)
+                      (uiop:split-string pair :separator "=")
+                    (cons k v)))
+            (uiop:split-string qs :separator "&"))))
 
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (utils:header-value headers "upgrade"))
-                 (connection (utils:header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
+(defun parse-query-string-plist (qs)
+  "クエリ文字列を PLIST に変換"
+  (when qs
+        (apply #'append
+          (mapcar (lambda (pair)
+                    (destructuring-bind (k v)
+                        (uiop:split-string pair :separator "=")
+                      (list (intern (string-upcase k) :keyword) v)))
+              (uiop:split-string qs :separator "&")))))
 
-(defmacro with-api-response (result)
-  `(let ((res ,result))
-     (cond
-      ((null res) ;; データなし
-                 `(200 (:content-type "application/json")
-                       (,(jonathan:to-json '(:status "success" :data ())))))
-      ((eq res :invalid)
-        `(400 (:content-type "application/json")
-              (,(jonathan:to-json '(:status "error")))))
-      (t
-        `(200 (:content-type "application/json")
-              (,(jonathan:to-json
-                 (list :status "success" :data res))))))))
+(defmacro with-invalid (&body body)
+  `(handler-case
+       (progn ,@body) ; ← そのまま返す。nilはnilのまま
+     (error (e)
+       (format *error-output* "ERROR: ~A~%" e)
+       :invalid)))
 
 
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /")))
+(defun extract-json-params (env)
+  "env からリクエストボディを取り出して JSON を plist に変換する。
+   パースに失敗したら :invalid を返す。"
+  (with-invalid
+   (let* ((headers (getf env :headers))
+          (content-length (parse-integer
+                            (or (header-value headers "content-length") "0")
+                            :junk-allowed t))
+          (input (getf env :raw-body))
+          (body-string (parse-request-body-string input content-length))
+          (params (safe-parse-json body-string)))
+     params)))
 
-(defroute-http "/user"
-               (with-api-response (controllers.users:get-user env)))
+(defun secure-random-bytes (n)
+  (let ((bytes (make-array n :element-type '(unsigned-byte 8))))
+    (ironclad:random-data bytes)
+    bytes))
 
-(defroute-http "/users"
-               (with-api-response (controllers.users:get-users env)))
-
-(defroute-http "/all-users"
-               (with-api-response (controllers.users:get-all-users)))
-
-(defroute-http "/create-user"
-               (with-api-response (controllers.users:create-user env)))
-
-(defroute-http "/update-user"
-               (with-api-response (controllers.users:update-user env)))
-
-(defroute-http "/delete-user"
-               (with-api-response (controllers.users:delete-user env)))
-
-(defroute-http "/get-map"
-               (with-api-response (controllers.maps:get-map env)))
-
-(defroute-http "/all-maps"
-               (with-api-response (controllers.maps:get-all-maps)))
-
-(defroute-http "/create-map"
-               (with-api-response (controllers.maps:create-map env)))
-
-(defroute-http "/update-map"
-               (with-api-response (controllers.maps:update-map env)))
-
-(defroute-http "/delete-map"
-               (with-api-response (controllers.maps:delete-map env)))
-
-(defroute-http "/all-nodes"
-               (with-api-response (controllers.nodes:get-all-nodes)))
-
-(defroute-http "/create-node"
-               (with-api-response (controllers.nodes:create-node env)))
-
-(defroute-http "/update-node"
-               (with-api-response (controllers.nodes:update-node env)))
-
-(defroute-http "/delete-node"
-               (with-api-response (controllers.nodes:delete-node env)))
-
-(defroute-http "/get-map-member"
-               (with-api-response (controllers.map-members:get-map-member env)))
-
-(defroute-http "/get-map-members-by-map-id"
-               (with-api-response (controllers.map-members:get-map-members-by-map-id env)))
-
-(defroute-http "/get-map-members-by-user-uid"
-               (with-api-response (controllers.map-members:get-map-members-by-user-uid env)))
-
-(defroute-http "/all-map-members"
-               (with-api-response (controllers.map-members:get-all-map-members)))
-
-(defroute-http "/create-map-member"
-               (with-api-response (controllers.map-members:create-map-member env)))
-
-(defroute-http "/delete-map-member"
-               (with-api-response (controllers.map-members:delete-map-member env)))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
-
-(defun start-app (&key (port 5000))
-  (clack:clackup *my-app* :server :woo :port port))
-
-; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user  
+(defun secure-random-hex (n)
+  "nバイトの安全なランダムを16進文字列にする"
+  (with-output-to-string (out)
+    (map nil (lambda (b) (format out "~2,'0X" b))
+        (secure-random-bytes n))))

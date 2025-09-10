@@ -8,6 +8,7 @@
 (use-package :clack)
 (use-package :websocket-driver)
 (ql:quickload :jsown)
+(ql:quickload :ironclad)
 
 (load "./models/initsql.lisp")
 (load "./models/users.lisp")

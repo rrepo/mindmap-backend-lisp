@@ -2,7 +2,8 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param))
+  (:import-from :ironclad :random-data)
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-hex))
 
 (in-package :utils)
 
@@ -63,3 +64,14 @@
           (body-string (parse-request-body-string input content-length))
           (params (safe-parse-json body-string)))
      params)))
+
+(defun secure-random-bytes (n)
+  (let ((bytes (make-array n :element-type '(unsigned-byte 8))))
+    (ironclad:random-data bytes)
+    bytes))
+
+(defun secure-random-hex (n)
+  "nバイトの安全なランダムを16進文字列にする"
+  (with-output-to-string (out)
+    (map nil (lambda (b) (format out "~2,'0X" b))
+        (secure-random-bytes n))))
