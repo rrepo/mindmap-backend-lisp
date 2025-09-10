@@ -33,7 +33,7 @@
    owner-uid
    :rows :plist))
 
-(defun create-map (title owner-uid &optional (visibility "public"))
+(defun create-map (title owner-uid &optional (visibility "private"))
   "Insert a new map."
   (postmodern:execute
    "INSERT INTO maps (title, owner_uid, visibility)

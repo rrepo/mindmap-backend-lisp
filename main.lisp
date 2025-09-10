@@ -13,9 +13,12 @@
 (load "./models/users.lisp")
 (load "./models/maps.lisp")
 (load "./models/nodes.lisp")
+(load "./models/map-members.lisp")
 (load "./controllers/server.lisp")
 (load "./controllers/users.lisp")
-(load "./controllers/mindmaps.lisp")
+(load "./controllers/maps.lisp")
+(load "./controllers/nodes.lisp")
+(load "./controllers/map-members.lisp")
 (load "./utils/utils.lisp")
 (init-db-utils:init-db)
 
@@ -54,9 +57,12 @@
              "./models/users.lisp"
              "./models/maps.lisp"
              "./models/nodes.lisp"
+             "./models/map-members.lisp"
              "./controllers/server.lisp"
              "./controllers/users.lisp"
-             "./controllers/mindmaps.lisp"
+             "./controllers/maps.lisp"
+             "./controllers/nodes.lisp"
+             "./controllers/map-members.lisp"
              "./utils/utils.lisp"))))
     (if (every #'identity results)
         (progn

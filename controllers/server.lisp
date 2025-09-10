@@ -5,7 +5,9 @@
 (in-package :websocket-app)
 
 (load "./controllers/users.lisp")
-(load "./controllers/mindmaps.lisp")
+(load "./controllers/maps.lisp")
+(load "./controllers/nodes.lisp")
+(load "./controllers/map-members.lisp")
 (load "./utils/utils.lisp")
 
 (defmacro defroute-http (path &body body)
@@ -83,31 +85,49 @@
                (with-api-response (controllers.users:delete-user env)))
 
 (defroute-http "/get-map"
-               (with-api-response (controllers.mindmaps:get-map env)))
+               (with-api-response (controllers.maps:get-map env)))
 
 (defroute-http "/all-maps"
-               (with-api-response (controllers.mindmaps:get-all-maps)))
+               (with-api-response (controllers.maps:get-all-maps)))
 
 (defroute-http "/create-map"
-               (with-api-response (controllers.mindmaps:create-map env)))
+               (with-api-response (controllers.maps:create-map env)))
 
 (defroute-http "/update-map"
-               (with-api-response (controllers.mindmaps:update-map env)))
+               (with-api-response (controllers.maps:update-map env)))
 
 (defroute-http "/delete-map"
-               (with-api-response (controllers.mindmaps:delete-map env)))
+               (with-api-response (controllers.maps:delete-map env)))
 
 (defroute-http "/all-nodes"
-               (with-api-response (controllers.mindmaps:get-all-nodes)))
+               (with-api-response (controllers.nodes:get-all-nodes)))
 
 (defroute-http "/create-node"
-               (with-api-response (controllers.mindmaps:create-node env)))
+               (with-api-response (controllers.nodes:create-node env)))
 
 (defroute-http "/update-node"
-               (with-api-response (controllers.mindmaps:update-node env)))
+               (with-api-response (controllers.nodes:update-node env)))
 
 (defroute-http "/delete-node"
-               (with-api-response (controllers.mindmaps:delete-node env)))
+               (with-api-response (controllers.nodes:delete-node env)))
+
+(defroute-http "/get-map-member"
+               (with-api-response (controllers.map-members:get-map-member env)))
+
+(defroute-http "/get-map-members-by-map-id"
+               (with-api-response (controllers.map-members:get-map-members-by-map-id env)))
+
+(defroute-http "/get-map-members-by-user-uid"
+               (with-api-response (controllers.map-members:get-map-members-by-user-uid env)))
+
+(defroute-http "/all-map-members"
+               (with-api-response (controllers.map-members:get-all-map-members)))
+
+(defroute-http "/create-map-member"
+               (with-api-response (controllers.map-members:create-map-member env)))
+
+(defroute-http "/delete-map-member"
+               (with-api-response (controllers.map-members:delete-map-member env)))
 
 (defroute-ws "/websocket"
              (on :message ws
