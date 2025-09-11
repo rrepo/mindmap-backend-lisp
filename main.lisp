@@ -8,8 +8,10 @@
 (use-package :clack)
 (use-package :websocket-driver)
 (ql:quickload :jsown)
-(ql:quickload :ironclad)
 (ql:quickload :local-time)
+(ql:quickload :frugal-uuid)
+(ql:quickload :ironclad)
+(ql:quickload :cl-base64)
 
 (load "./models/initsql.lisp")
 (load "./models/users.lisp")

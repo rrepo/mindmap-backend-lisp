@@ -2,8 +2,10 @@
   (:use :cl :jonathan)
   (:import-from :cl-ppcre :split)
   (:import-from :flexi-streams :octets-to-string)
-  (:import-from :ironclad :random-data)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-hex))
+  (:import-from :frugal-uuid :make-v4 :to-string)
+  (:import-from :ironclad :make-random-salt)
+  (:import-from :cl-base64 :usb8-array-to-base64-string)
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token))
 
 (in-package :utils)
 
@@ -65,13 +67,13 @@
           (params (safe-parse-json body-string)))
      params)))
 
-(defun secure-random-bytes (n)
-  (let ((bytes (make-array n :element-type '(unsigned-byte 8))))
-    (ironclad:random-data bytes)
-    bytes))
+(defun uuid-string ()
+  "新しい UUID を文字列で返す (ハイフンありの標準形式)."
+  (to-string (make-v4)))
 
-(defun secure-random-hex (n)
-  "nバイトの安全なランダムを16進文字列にする"
-  (with-output-to-string (out)
-    (map nil (lambda (b) (format out "~2,'0X" b))
-        (secure-random-bytes n))))
+(defun generate-secure-invite-token (&optional (bytes 32))
+  "推奨: Base64 URL-safeで招待トークンを生成"
+  (let ((random-bytes (ironclad:make-random-salt bytes)))
+    ;; パディングを削除してさらに短く
+    (string-right-trim "="
+                       (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))

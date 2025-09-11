@@ -38,16 +38,20 @@
    map-id :plists))
 
 ;; 4. 招待を作成
-(defun create-invitation (map-id inviter-uid &key (days-valid 7))
-  (let* ((token (utils:secure-random-hex 16))
-         (expires-at (local-time:adjust-timestamp
-                      (local-time:now)
-                      (list :day days-valid))))
-    (execute
-     "INSERT INTO map_invitations (map_id, inviter_uid, token, expires_at)
-      VALUES ($1, $2, $3, $4)"
-     map-id inviter-uid token expires-at)
-    token)) ;; 作成したトークンを返す
+(defun create-invitation (map-id inviter-uid &key (expires-at 7))
+  "招待を作成。expires-at は日数指定。デフォルトは7日後。"
+  (let* ((token (utils:generate-secure-invite-token))
+         ;; timestamp型をそのまま使う
+         (expires-ts (local-time:timestamp+ (local-time:now) expires-at :day)))
+    (format *error-output* "Creating invitation: token=~A~%" token)
+    (format *error-output* "Creating invitation: expires=~A~%" expires-ts)
+    (values token expires-ts)))
+
+; (execute
+;  "INSERT INTO map_invitations (map_id, inviter_uid, token, expires_at)
+;   VALUES ($1, $2, $3, $4)"
+;  map-id inviter-uid token expires-str)
+
 
 ;; 5. 招待を削除
 (defun delete-invitation (id)

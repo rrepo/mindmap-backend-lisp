@@ -1,11 +1,15 @@
-(defpackage :models.map-invitations
+(defpackage :controllers.map-invitations
   (:use :cl :postmodern)
-  (:export))
+  (:export :get-map-invitation
+           :get-map-invitation-by-token
+           :get-map-invitation-by-map-id
+           :create-map-invitation
+           :delete-map-invitation))
 
 (load "./models/map-invitations.lisp")
 (load "./utils/utils.lisp")
 
-(in-package :models.map-invitations)
+(in-package :controllers.map-invitations)
 
 (defun get-map-invitation (env)
   "ID指定で map_member を取得"
@@ -41,8 +45,11 @@
           (map-id (getf params :|map-id|))
           (user-uid (getf params :|uid|))
           (expires-at (getf params :|expires-at|)))
+     (format *error-output* "Creating invitation request: map-id=~A, user-uid=~A, expires-at=~A~%" map-id user-uid expires-at)
      (when (and map-id user-uid)
-           (models.map-invitations:create-invitation map-id user-uid expires-at)
+           (if expires-at
+               (models.map-invitations:create-invitation map-id user-uid :expires-at expires-at)
+               (models.map-invitations:create-invitation map-id user-uid))
            :success))))
 
 (defun delete-map-invitation (env)

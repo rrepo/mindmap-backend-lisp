@@ -130,6 +130,21 @@
 (defroute-http "/delete-map-member"
                (with-api-response (controllers.map-members:delete-map-member env)))
 
+(defroute-http "/get-map-invitation"
+               (with-api-response (controllers.map-invitations:get-map-invitation env)))
+
+(defroute-http "/get-map-invitation-by-token"
+               (with-api-response (controllers.map-invitations:get-map-invitation-by-token env)))
+
+(defroute-http "/get-map-invitation-by-map-id"
+               (with-api-response (controllers.map-invitations:get-map-invitation-by-map-id env)))
+
+(defroute-http "/create-map-invitation"
+               (with-api-response (controllers.map-invitations:create-map-invitation env)))
+
+(defroute-http "/delete-map-invitation"
+               (with-api-response (controllers.map-invitations:delete-map-invitation env)))
+
 (defroute-ws "/websocket"
              (on :message ws
                  (lambda (msg)
