@@ -8,6 +8,7 @@
 (load "./controllers/maps.lisp")
 (load "./controllers/nodes.lisp")
 (load "./controllers/map-members.lisp")
+(load "./controllers/map-invitations.lisp")
 (load "./utils/utils.lisp")
 
 (defmacro defroute-http (path &body body)

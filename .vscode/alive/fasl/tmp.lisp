@@ -1,77 +1,63 @@
-(defpackage :utils
-  (:use :cl :jonathan)
-  (:import-from :cl-ppcre :split)
-  (:import-from :flexi-streams :octets-to-string)
-  (:import-from :ironclad :random-data)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-hex))
+(defpackage :models.map-invitations
+  (:use :cl :postmodern :local-time)
+  (:export :get-invitation
+           :get-invitation-by-token
+           :get-invitations-by-map-id
+           :create-invitation
+           :delete-invitation
+           :delete-expired-invitations))
 
-(in-package :utils)
+(load "./utils/utils.lisp")
 
-(defun header-value (headers name)
-  (gethash name headers))
+(in-package :models.map-invitations)
 
-(defun parse-request-body-string (input content-length)
-  "リクエストボディを読み取って文字列として返す"
-  (when (and input content-length (> content-length 0))
-        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
-          (read-sequence buffer input)
-          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
+(defun get-invitation (id)
+  "指定IDの招待を取得する。"
+  (query
+   "SELECT id, map_id, inviter_uid, token, created_at, expires_at
+    FROM map_invitations
+    WHERE id = $1"
+   id :single :plist))
 
-(defun safe-parse-json (json-string)
-  "Parse JSON safely. Returns plist or :invalid."
-  (handler-case
-      (jonathan:parse json-string :keywordize t)
-    (error (e)
-      (format *error-output* "JSON parse error: ~A~%" e)
-      :invalid)))
+(defun get-invitation-by-token (token)
+  "指定トークンの招待を取得する。"
+  (query
+   "SELECT id, map_id, inviter_uid, token, created_at, expires_at
+    FROM map_invitations
+    WHERE token = $1"
+   token :single :plist))
 
-(defun parse-query-string-alist (qs)
-  "クエリ文字列をALISTに変換"
-  (when qs
-        (mapcar (lambda (pair)
-                  (destructuring-bind (k v)
-                      (uiop:split-string pair :separator "=")
-                    (cons k v)))
-            (uiop:split-string qs :separator "&"))))
+;; 3. map_id ごとの招待一覧
+(defun get-invitations-by-map-id (map-id)
+  "指定されたMAP_IDの招待一覧を取得する。"
+  (query
+   "SELECT id, map_id, inviter_uid, token, created_at, expires_at
+    FROM map_invitations
+    WHERE map_id = $1
+    ORDER BY created_at ASC"
+   map-id :plists))
 
-(defun parse-query-string-plist (qs)
-  "クエリ文字列を PLIST に変換"
-  (when qs
-        (apply #'append
-          (mapcar (lambda (pair)
-                    (destructuring-bind (k v)
-                        (uiop:split-string pair :separator "=")
-                      (list (intern (string-upcase k) :keyword) v)))
-              (uiop:split-string qs :separator "&")))))
+;; 4. 招待を作成
+(defun create-invitation (map-id inviter-uid &key (days-valid 7))
+  (let* ((token (utils:secure-random-hex 16))
+         (expires-at (local-time:adjust-timestamp
+                      (local-time:now)
+                      (list :day days-valid))))
+    (execute
+     "INSERT INTO map_invitations (map_id, inviter_uid, token, expires_at)
+      VALUES ($1, $2, $3, $4)"
+     map-id inviter-uid token expires-at)
+    token)) ;; 作成したトークンを返す
 
-(defmacro with-invalid (&body body)
-  `(handler-case
-       (progn ,@body) ; ← そのまま返す。nilはnilのまま
-     (error (e)
-       (format *error-output* "ERROR: ~A~%" e)
-       :invalid)))
+;; 5. 招待を削除
+(defun delete-invitation (id)
+  "指定IDの招待を削除する。"
+  (execute
+   "DELETE FROM map_invitations WHERE id = $1"
+   id))
 
-
-(defun extract-json-params (env)
-  "env からリクエストボディを取り出して JSON を plist に変換する。
-   パースに失敗したら :invalid を返す。"
-  (with-invalid
-   (let* ((headers (getf env :headers))
-          (content-length (parse-integer
-                            (or (header-value headers "content-length") "0")
-                            :junk-allowed t))
-          (input (getf env :raw-body))
-          (body-string (parse-request-body-string input content-length))
-          (params (safe-parse-json body-string)))
-     params)))
-
-(defun secure-random-bytes (n)
-  (let ((bytes (make-array n :element-type '(unsigned-byte 8))))
-    (ironclad:random-data bytes)
-    bytes))
-
-(defun secure-random-hex (n)
-  "nバイトの安全なランダムを16進文字列にする"
-  (with-output-to-string (out)
-    (map nil (lambda (b) (format out "~2,'0X" b))
-        (secure-random-bytes n))))
+;; 6. 有効期限切れの招待を削除
+(defun delete-expired-invitations ()
+  "期限切れの招待を一括削除する。"
+  (execute
+   "DELETE FROM map_invitations WHERE expires_at < NOW()"))

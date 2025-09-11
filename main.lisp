@@ -9,17 +9,20 @@
 (use-package :websocket-driver)
 (ql:quickload :jsown)
 (ql:quickload :ironclad)
+(ql:quickload :local-time)
 
 (load "./models/initsql.lisp")
 (load "./models/users.lisp")
 (load "./models/maps.lisp")
 (load "./models/nodes.lisp")
 (load "./models/map-members.lisp")
+(load "./models/map-invitations.lisp")
 (load "./controllers/server.lisp")
 (load "./controllers/users.lisp")
 (load "./controllers/maps.lisp")
 (load "./controllers/nodes.lisp")
 (load "./controllers/map-members.lisp")
+(load "./controllers/map-invitations.lisp")
 (load "./utils/utils.lisp")
 (init-db-utils:init-db)
 
@@ -59,11 +62,13 @@
              "./models/maps.lisp"
              "./models/nodes.lisp"
              "./models/map-members.lisp"
+             "./models/map-invitations.lisp"
              "./controllers/server.lisp"
              "./controllers/users.lisp"
              "./controllers/maps.lisp"
              "./controllers/nodes.lisp"
              "./controllers/map-members.lisp"
+             "./controllers/map-invitations.lisp"
              "./utils/utils.lisp"))))
     (if (every #'identity results)
         (progn
