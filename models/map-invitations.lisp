@@ -41,16 +41,18 @@
 (defun create-invitation (map-id inviter-uid &key (expires-at 7))
   "招待を作成。expires-at は日数指定。デフォルトは7日後。"
   (let* ((token (utils:generate-secure-invite-token))
-         ;; timestamp型をそのまま使う
-         (expires-ts (local-time:timestamp+ (local-time:now) expires-at :day)))
-    (format *error-output* "Creating invitation: token=~A~%" token)
-    (format *error-output* "Creating invitation: expires=~A~%" expires-ts)
-    (values token expires-ts)))
-
-; (execute
-;  "INSERT INTO map_invitations (map_id, inviter_uid, token, expires_at)
-;   VALUES ($1, $2, $3, $4)"
-;  map-id inviter-uid token expires-str)
+         ;; 7日後のlocal-time:timestamp
+         (expires-ts (local-time:timestamp+ (local-time:now) expires-at :day))
+         ;; Postgresに入る文字列に変換 (YYYY-MM-DD HH:MM:SS)
+         (expires-str (local-time:format-timestring
+                       nil expires-ts
+                       :format '(:year "-" (:month 2) "-" (:day 2)
+                                       " " (:hour 2) ":" (:min 2) ":" (:sec 2)))))
+    (execute
+     "INSERT INTO map_invitations (map_id, inviter_uid, token, expires_at)
+      VALUES ($1, $2, $3, $4)"
+     map-id inviter-uid token expires-str)
+    token))
 
 
 ;; 5. 招待を削除

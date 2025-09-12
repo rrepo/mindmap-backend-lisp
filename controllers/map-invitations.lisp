@@ -26,6 +26,7 @@
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (token (getf params :token)))
+     (format *error-output* "Fetching invitation for token=~A~%" token)
      (when token
            (models.map-invitations:get-invitation-by-token token)))))
 
@@ -35,8 +36,9 @@
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (map-id (getf params :ID)))
+     (format *error-output* "Fetching invitations for map-id=~A~%" map-id)
      (when map-id
-           (models.map-invitations:get-invitation-by-token map-id)))))
+           (models.map-invitations:get-invitations-by-map-id map-id)))))
 
 (defun create-map-invitation (env)
   "map_id と user_uid を指定して map_member を追加"
