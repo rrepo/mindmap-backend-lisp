@@ -1,10 +1,11 @@
 (defpackage :controllers.maps
   (:use :cl :jonathan)
-  (:export get-all-maps get-map create-map update-map delete-map))
+  (:export get-all-maps get-map create-map update-map delete-map get-map-detiels))
 
 (load "./models/maps.lisp")
 (load "./models/nodes.lisp")
 (load "./utils/utils.lisp")
+(load "./services/mindmaps.lisp")
 
 (in-package :controllers.maps)
 
@@ -56,3 +57,12 @@
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (models.maps:delete-map id)))))
+
+(defun get-map-detiels (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (format *error-output* "Get map details called with ID=~A~%" id)
+     (when (and id (not (string= id "")))
+           (services.mindmaps:get-map-detiels id)))))

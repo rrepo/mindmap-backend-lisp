@@ -8,11 +8,12 @@
            delete-map))
 
 (in-package :models.maps)
+(load "./utils/utils.lisp")
 
 (defun get-map (id)
   "Fetch a map by its ID."
   (postmodern:query
-   "SELECT id, title, owner_uid, visibility, created_at, updated_at
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
     FROM maps
     WHERE id = $1"
    id :rows :plist))
@@ -20,14 +21,14 @@
 (defun get-all-maps ()
   "Fetch all maps."
   (postmodern:query
-   "SELECT id, title, owner_uid, visibility, created_at, updated_at
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
     FROM maps"
    :rows :plists))
 
 (defun get-maps-by-user-uid (owner-uid)
   "Fetch all maps belonging to a user specified by owner UID."
   (postmodern:query
-   "SELECT id, title, owner_uid, visibility, created_at, updated_at
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
     FROM maps
     WHERE owner_uid = $1"
    owner-uid
@@ -36,9 +37,9 @@
 (defun create-map (title owner-uid &optional (visibility "private"))
   "Insert a new map."
   (postmodern:execute
-   "INSERT INTO maps (title, owner_uid, visibility)
-    VALUES ($1, $2, $3)"
-   title owner-uid visibility))
+   "INSERT INTO maps (uuid, title, owner_uid, visibility)
+    VALUES ($1, $2, $3, $4)"
+   (utils:uuid-string) title owner-uid visibility))
 
 (defun update-map (id &key title owner-uid visibility)
   "Update only the given fields of a map."

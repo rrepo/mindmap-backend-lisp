@@ -25,6 +25,7 @@
 (load "./controllers/nodes.lisp")
 (load "./controllers/map-members.lisp")
 (load "./controllers/map-invitations.lisp")
+(load "./services/mindmaps.lisp")
 (load "./utils/utils.lisp")
 (init-db-utils:init-db)
 
@@ -71,6 +72,7 @@
              "./controllers/nodes.lisp"
              "./controllers/map-members.lisp"
              "./controllers/map-invitations.lisp"
+             "./services/mindmaps.lisp"
              "./utils/utils.lisp"))))
     (if (every #'identity results)
         (progn

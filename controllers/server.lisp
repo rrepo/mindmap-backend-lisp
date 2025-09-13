@@ -9,6 +9,7 @@
 (load "./controllers/nodes.lisp")
 (load "./controllers/map-members.lisp")
 (load "./controllers/map-invitations.lisp")
+(load "./services/mindmaps.lisp")
 (load "./utils/utils.lisp")
 
 (defmacro defroute-http (path &body body)
@@ -144,6 +145,9 @@
 
 (defroute-http "/delete-map-invitation"
                (with-api-response (controllers.map-invitations:delete-map-invitation env)))
+
+(defroute-http "/get-map-detiels"
+               (with-api-response (controllers.maps:get-map-detiels env)))
 
 (defroute-ws "/websocket"
              (on :message ws
