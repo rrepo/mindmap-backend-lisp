@@ -25,30 +25,46 @@
            (declare (ignore responder))
            (start-connection ws))))))
 
+(defun with-cors (handler)
+  (lambda (env)
+    (multiple-value-bind (status headers body)
+        (funcall handler env)
+      (values status
+        (append
+          '(("Access-Control-Allow-Origin" . "http://localhost:3000/")
+            ("Access-Control-Allow-Methods" . "GET, POST, PUT, DELETE, OPTIONS")
+            ("Access-Control-Allow-Headers" . "Content-Type, Authorization"))
+          headers)
+        body))))
+
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
 
 (defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (headers (getf env :headers))
-                 (upgrade (utils:header-value headers "upgrade"))
-                 (connection (utils:header-value headers "connection")))
-            ;; WebSocket
-            (if (and (string= path "/websocket")
-                     upgrade
-                     (string-equal (string-downcase upgrade) "websocket")
-                     connection
-                     (search "upgrade" (string-downcase connection)))
-                (let ((ws-handler (gethash path *ws-routes*)))
-                  (if ws-handler
-                      (funcall ws-handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))
-                ;; HTTP
-                (let ((handler (gethash path *http-routes*)))
-                  (if handler
-                      (funcall handler env)
-                      '(404 (:content-type "text/plain") ("Not Found"))))))))
+        (with-cors
+         (lambda (env)
+           (let* ((path (getf env :path-info))
+                  (method (getf env :request-method)))
+             (cond
+              ;; OPTIONSリクエスト (CORS preflight) の処理
+              ((string= method "OPTIONS")
+                (values 200
+                  '(("Content-Type" . "text/plain"))
+                  '("OK")))
+
+              ;; HTTPルートがあれば実行
+              ((gethash path *http-routes*)
+                (funcall (gethash path *http-routes*) env))
+
+              ;; WSルートがあれば実行
+              ((gethash path *ws-routes*)
+                (funcall (gethash path *ws-routes*) env))
+
+              ;; not found
+              (t
+                (values 404
+                  '(("Content-Type" . "text/plain"))
+                  '("Not Found"))))))))
 
 (defmacro with-api-response (result)
   `(let ((res ,result))
