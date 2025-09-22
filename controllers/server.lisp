@@ -43,48 +43,74 @@
         (uiop:getenv "BACKEND_TOKEN_SECRET"))
 
 (defun validate-service-token (env)
-  "env から X-Service-Token を取り出し、*backend-token-secret* と一致するか検証する。"
+  "env から X-Service-Token を取り出し、*backend-token-secret* と一致するか検証する。
+ヘッダがハッシュテーブル／plist／alist のいずれでも動作するようにする。"
+  (format t "~&[DEBUG] Validating service token...~%")
   (let* ((headers (getf env :headers))
-         (token (gethash "x-service-token" headers)))
-    (if (and token (string= token *backend-token-secret*))
-        t
-        nil)))
+         (find-in-htable
+          (lambda (ht key)
+            (let ((found nil))
+              (maphash (lambda (k v)
+                         (when (and (stringp (string k))
+                                    (string= (string-downcase (string k))
+                                             (string-downcase key)))
+                               (setf found v)))
+                       ht)
+              found)))
+         (token
+          (cond
+           ((typep headers 'hash-table)
+             (funcall find-in-htable headers "x-service-token"))
+           ((listp headers)
+             (or (getf headers :x-service-token)
+                 (getf headers :X-SERVICE-TOKEN)
+                 (let ((pair (assoc "x-service-token" headers :test
+                                    (lambda (a b)
+                                      (and (stringp a)
+                                           (string= (string-downcase a)
+                                                    (string-downcase b)))))))
+                   (when pair (cdr pair)))))
+           (t nil))))
+    (format t "~&[DEBUG] Token from header: ~A~%" token)
+    (format t "~&[DEBUG] Expected token: ~A~%" *backend-token-secret*)
+    (and token (string= token *backend-token-secret*))))
 
 
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
 
 (defvar *my-app*
-        (with-cors
-         (lambda (env)
-           (let* ((path (getf env :path-info))
-                  (method (getf env :request-method)))
-             (cond
-              ;; OPTIONSリクエスト (CORS preflight)
-              ((string= method "OPTIONS")
-                (values 200
-                  '(("Content-Type" . "text/plain"))
-                  '("OK")))
+        ; (with-cors
+        (lambda (env)
+          (let* ((path (getf env :path-info))
+                 (method (getf env :request-method)))
+            (cond
+             ;; OPTIONSリクエスト (CORS preflight)
+             ((string= method "OPTIONS")
+               (list 200
+                     '(:content-type "text/plain")
+                     '("OK")))
 
-              ;; トークン認証
-              ((not (validate-service-token env))
-                (values 401
-                  '(("Content-Type" . "text/plain"))
-                  '("Unauthorized")))
+             ;; トークン認証（有効）
+             ((not (validate-service-token env))
+               (list 401
+                     '(:content-type "text/plain")
+                     '("Unauthorized")))
 
-              ;; HTTPルート
-              ((gethash path *http-routes*)
-                (funcall (gethash path *http-routes*) env))
+             ;; HTTPルート
+             ((gethash path *http-routes*)
+               (funcall (gethash path *http-routes*) env))
 
-              ;; WSルート
-              ((gethash path *ws-routes*)
-                (funcall (gethash path *ws-routes*) env))
+             ;; WSルート
+             ((gethash path *ws-routes*)
+               (funcall (gethash path *ws-routes*) env))
 
-              ;; Not Found
-              (t
-                (values 404
-                  '(("Content-Type" . "text/plain"))
-                  '("Not Found"))))))))
+             ;; Not Found
+             (t
+               (list 404
+                     '(:content-type "text/plain")
+                     '("Not Found")))))))
+
 
 (defmacro with-api-response (result)
   `(let ((res ,result))
@@ -194,4 +220,4 @@
 (defun start-app (&key (port 5000))
   (clack:clackup *my-app* :server :woo :port port))
 
-; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user  
+; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user
