@@ -29,6 +29,7 @@
 (load "./services/mindmaps.lisp")
 (load "./utils/utils.lisp")
 (load "./utils/env.lisp")
+(load "./utils/server-utils.lisp")
 (init-db-utils:init-db)
 
 (utils-env:load-env)
@@ -78,7 +79,8 @@
              "./controllers/map-invitations.lisp"
              "./services/mindmaps.lisp"
              "./utils/utils.lisp"
-             "./utils/env.lisp"))))
+             "./utils/env.lisp"
+             "./utils/server-utils.lisp"))))
     (if (every #'identity results)
         (progn
          (format t "=== Reload complete (OK) ===~%~%")
