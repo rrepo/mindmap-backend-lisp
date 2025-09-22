@@ -11,6 +11,7 @@
 (load "./controllers/map-invitations.lisp")
 (load "./services/mindmaps.lisp")
 (load "./utils/utils.lisp")
+(load "./utils/env.lisp")
 
 (defmacro defroute-http (path &body body)
   `(setf (gethash ,path *http-routes*)
@@ -37,15 +38,9 @@
           headers)
         body))))
 
-(.env:load-env (merge-pathnames ".env"))
-
-(defvar *backend-token-secret*
-        (uiop:getenv "BACKEND_TOKEN_SECRET"))
-
 (defun validate-service-token (env)
   "env から X-Service-Token を取り出し、*backend-token-secret* と一致するか検証する。
 ヘッダがハッシュテーブル／plist／alist のいずれでも動作するようにする。"
-  (format t "~&[DEBUG] Validating service token...~%")
   (let* ((headers (getf env :headers))
          (find-in-htable
           (lambda (ht key)
@@ -71,9 +66,7 @@
                                                     (string-downcase b)))))))
                    (when pair (cdr pair)))))
            (t nil))))
-    (format t "~&[DEBUG] Token from header: ~A~%" token)
-    (format t "~&[DEBUG] Expected token: ~A~%" *backend-token-secret*)
-    (and token (string= token *backend-token-secret*))))
+    (and token (string= token utils-env:*backend-token-secret*))))
 
 
 (defvar *http-routes* (make-hash-table :test #'equal))
