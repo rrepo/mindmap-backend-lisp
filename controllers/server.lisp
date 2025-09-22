@@ -1,5 +1,5 @@
 (defpackage :websocket-app
-  (:use :cl :clack :websocket-driver)
+  (:use :cl :clack :websocket-driver :cl-dotenv)
   (:export :start-app :*my-app*))
 
 (in-package :websocket-app)
@@ -37,6 +37,20 @@
           headers)
         body))))
 
+(.env:load-env (merge-pathnames ".env"))
+
+(defvar *backend-token-secret*
+        (uiop:getenv "BACKEND_TOKEN_SECRET"))
+
+(defun validate-service-token (env)
+  "env から X-Service-Token を取り出し、*backend-token-secret* と一致するか検証する。"
+  (let* ((headers (getf env :headers))
+         (token (gethash "x-service-token" headers)))
+    (if (and token (string= token *backend-token-secret*))
+        t
+        nil)))
+
+
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
 
@@ -46,21 +60,27 @@
            (let* ((path (getf env :path-info))
                   (method (getf env :request-method)))
              (cond
-              ;; OPTIONSリクエスト (CORS preflight) の処理
+              ;; OPTIONSリクエスト (CORS preflight)
               ((string= method "OPTIONS")
                 (values 200
                   '(("Content-Type" . "text/plain"))
                   '("OK")))
 
-              ;; HTTPルートがあれば実行
+              ;; トークン認証
+              ((not (validate-service-token env))
+                (values 401
+                  '(("Content-Type" . "text/plain"))
+                  '("Unauthorized")))
+
+              ;; HTTPルート
               ((gethash path *http-routes*)
                 (funcall (gethash path *http-routes*) env))
 
-              ;; WSルートがあれば実行
+              ;; WSルート
               ((gethash path *ws-routes*)
                 (funcall (gethash path *ws-routes*) env))
 
-              ;; not found
+              ;; Not Found
               (t
                 (values 404
                   '(("Content-Type" . "text/plain"))

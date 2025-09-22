@@ -77,3 +77,5 @@
     ;; パディングを削除してさらに短く
     (string-right-trim "="
                        (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))
+
+                       
