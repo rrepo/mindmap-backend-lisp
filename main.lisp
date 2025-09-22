@@ -12,6 +12,7 @@
 (ql:quickload :frugal-uuid)
 (ql:quickload :ironclad)
 (ql:quickload :cl-base64)
+(ql:quickload :cl-dotenv)
 
 (load "./models/initsql.lisp")
 (load "./models/users.lisp")
