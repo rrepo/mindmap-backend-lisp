@@ -1,16 +1,16 @@
 (defpackage :controllers.nodes
   (:use :cl :jonathan)
-  (:export get-all-nodes create-node update-node delete-node))
+  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node))
 
 (in-package :controllers.nodes)
 
-(defun get-all-nodes ()
+(defun handle-get-all-nodes ()
   (utils:with-invalid
    (let* ((nodes (models.nodes:get-all-nodes)))
      (format *error-output* "All nodes: ~A~%" nodes)
      nodes)))
 
-(defun create-node (env)
+(defun handle-create-node (env)
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (map-id (getf params :|map-id|))
@@ -21,7 +21,7 @@
            (models.nodes:create-node map-id parent-id content uid)
            :success))))
 
-(defun update-node (env)
+(defun handle-update-node (env)
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (id (getf params :|id|))
@@ -40,7 +40,7 @@
            :success))))
 
 
-(defun delete-node (env)
+(defun handle-delete-node (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
