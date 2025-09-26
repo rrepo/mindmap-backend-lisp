@@ -1,16 +1,10 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-detiels))
-
-(load "./utils/utils.lisp")
-(load "./models/nodes.lisp")
-(load "./models/maps.lisp")
-(load "./models/map-members.lisp")
-(load "./models/map-invitations.lisp")
+  (:export get-map-details))
 
 (in-package :services.mindmaps)
 
-(defun get-map-detiels (map-id)
+(defun get-map-details (map-id)
   "指定 map-id の map と関連する情報を plist で返す"
   (when map-id
         (let* ((map (models.maps:get-map map-id))

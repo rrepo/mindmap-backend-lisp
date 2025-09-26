@@ -8,7 +8,6 @@
            delete-map))
 
 (in-package :models.maps)
-(load "./utils/utils.lisp")
 
 (defun get-map (id)
   "Fetch a map by its ID."

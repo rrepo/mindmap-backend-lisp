@@ -7,8 +7,6 @@
            :delete-invitation
            :delete-expired-invitations))
 
-(load "./utils/utils.lisp")
-
 (in-package :models.map-invitations)
 
 (defun get-invitation (id)

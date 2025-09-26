@@ -1,15 +1,14 @@
 (defpackage :controllers.maps
   (:use :cl :jonathan)
-  (:export get-all-maps get-map create-map update-map delete-map get-map-detiels))
-
-(load "./models/maps.lisp")
-(load "./models/nodes.lisp")
-(load "./utils/utils.lisp")
-(load "./services/mindmaps.lisp")
+  (:export handle-get-all-maps
+           handle-get-map
+           handle-create-map
+           handle-update-map
+           handle-delete-map
+           handle-get-map-details))
 
 (in-package :controllers.maps)
-
-(defun get-map (env)
+(defun handle-get-map (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
@@ -22,12 +21,12 @@
              ;; map は plist なので append で nodes を追加
              (append map (list :nodes nodes)))))))
 
-(defun get-all-maps ()
+(defun handle-get-all-maps ()
   (utils:with-invalid
    (let* ((maps (models.maps:get-all-maps)))
      maps)))
 
-(defun create-map (env)
+(defun handle-create-map (env)
   "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
@@ -38,7 +37,7 @@
            (models.maps:create-map title uid visibility)
            :success))))
 
-(defun update-map (env)
+(defun handle-update-map (env)
   (utils:with-invalid
    (format *error-output* "Update user called~%")
    (let* ((params (utils:extract-json-params env))
@@ -50,7 +49,7 @@
      (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
      :success)))
 
-(defun delete-map (env)
+(defun handle-delete-map (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
@@ -58,11 +57,11 @@
      (when (and id (not (string= id "")))
            (models.maps:delete-map id)))))
 
-(defun get-map-detiels (env)
+(defun handle-get-map-details (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (format *error-output* "Get map details called with ID=~A~%" id)
      (when (and id (not (string= id "")))
-           (services.mindmaps:get-map-detiels id)))))
+           (services.mindmaps:get-map-details id)))))

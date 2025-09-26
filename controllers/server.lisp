@@ -4,15 +4,6 @@
 
 (in-package :websocket-app)
 
-(load "./controllers/users.lisp")
-(load "./controllers/maps.lisp")
-(load "./controllers/nodes.lisp")
-(load "./controllers/map-members.lisp")
-(load "./controllers/map-invitations.lisp")
-(load "./services/mindmaps.lisp")
-(load "./utils/utils.lisp")
-(load "./utils/env.lisp")
-
 (defmacro defroute-http (path &body body)
   `(setf (gethash ,path *http-routes*)
      (lambda (env) ,@body)))
@@ -142,19 +133,19 @@
                (with-api-response (controllers.users:delete-user env)))
 
 (defroute-http "/get-map"
-               (with-api-response (controllers.maps:get-map env)))
+               (with-api-response (controllers.maps:handle-get-map env)))
 
 (defroute-http "/all-maps"
-               (with-api-response (controllers.maps:get-all-maps)))
+               (with-api-response (controllers.maps:handle-get-all-maps)))
 
 (defroute-http "/create-map"
-               (with-api-response (controllers.maps:create-map env)))
+               (with-api-response (controllers.maps:handle-create-map env)))
 
 (defroute-http "/update-map"
-               (with-api-response (controllers.maps:update-map env)))
+               (with-api-response (controllers.maps:handle-update-map env)))
 
 (defroute-http "/delete-map"
-               (with-api-response (controllers.maps:delete-map env)))
+               (with-api-response (controllers.maps:handle-delete-map env)))
 
 (defroute-http "/all-nodes"
                (with-api-response (controllers.nodes:get-all-nodes)))
@@ -201,8 +192,8 @@
 (defroute-http "/delete-map-invitation"
                (with-api-response (controllers.map-invitations:delete-map-invitation env)))
 
-(defroute-http "/get-map-detiels"
-               (with-api-response (controllers.maps:get-map-detiels env)))
+(defroute-http "/get-map-details"
+               (with-api-response (controllers.maps:handle-get-map-details env)))
 
 (defroute-ws "/websocket"
              (on :message ws
