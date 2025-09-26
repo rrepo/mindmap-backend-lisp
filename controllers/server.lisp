@@ -1,6 +1,6 @@
 (defpackage :websocket-app
   (:use :cl :clack :websocket-driver :cl-dotenv)
-  (:export :start-app :*my-app*))
+  (:export :start-app :*my-app* :stop-app))
 
 (in-package :websocket-app)
 
@@ -201,7 +201,25 @@
                    (format t "~&[WS] Received: ~A~%" msg)
                    (send ws (concatenate 'string "Echo: " msg)))))
 
-(defun start-app (&key (port 5000))
-  (clack:clackup *my-app* :server :woo :port port))
 
-; curl -X POST      -H "Content-Type: application/json"      -d '{"uid":"u123", "name":"Taro", "img":"http://example.com"}'      http://localhost:5000/create-user
+(defvar *current-server* nil
+        "現在起動中の Mindmap サーバーを保持。")
+
+(defun start-app (&key (port 5000))
+  "サーバーを起動してサーバーオブジェクトを返す。"
+  ;; すでにサーバーがあれば停止してから起動
+  (when *current-server*
+        (stop-app))
+  (format t "Starting Mindmap server on port ~a...~%" port)
+  ;; Clack のサーバーを起動してオブジェクトを保存
+  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
+  *current-server*)
+
+(defun stop-app ()
+  "現在のサーバーを停止する。"
+  (when *current-server*
+        (format t "Stopping Mindmap server...~%")
+        (ignore-errors
+          ;; Clack/Woo 停止関数
+          (clack:stop *current-server*))
+        (setf *current-server* nil)))
