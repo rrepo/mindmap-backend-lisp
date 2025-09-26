@@ -6,7 +6,7 @@
   (lambda (env)
     (when *dev-mode*
           (ignore-errors
-            (asdf:load-system :mindmap :force t)))
+            (asdf:load-system :mindmap)))
     (funcall app env)))
 
 (defun start-mindmap-server ()

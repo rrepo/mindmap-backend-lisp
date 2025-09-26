@@ -1,30 +1,68 @@
-(in-package :cl-user)
+(defpackage :controllers.maps
+  (:use :cl :jonathan)
+  (:export handle-get-all-maps
+           handle-get-map
+           handle-create-map
+           handle-update-map
+           handle-delete-map
+           handle-get-map-details))
 
-(defparameter *dev-mode* t)
+(in-package :controllers.maps)
+(defun handle-get-map (env)
+  (utils:with-invalid
+   (format *error-output* "Get map called!!!!~%")
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (let* ((map (models.maps:get-map id))
+                  (nodes (models.nodes:get-nodes-by-map-id id)))
+             (format *error-output* "Map: ~A~%" map)
+             (format *error-output* "nodes: ~A~%" nodes)
+             ;; map は plist なので append で nodes を追加
+             (append map (list :nodes nodes)))))))
 
-(defun dev-reloader (app)
-  (lambda (env)
-    (when *dev-mode*
-          (ignore-errors
-            (asdf:load-system :mindmap :force t)))
-    (funcall app env)))
+(defun handle-get-all-maps ()
+  (utils:with-invalid
+   (let* ((maps (models.maps:get-all-maps)))
+     maps)))
 
-(defun start-mindmap-server ()
-  (utils-env:load-env)
-  (init-db-utils:init-db)
-  (format t "Starting Mindmap server on port 5000...~%")
-  (setf *server*
-    (clack:clackup
-     (dev-reloader websocket-app::*my-app*)
-     :server :woo
-     :port 5000)))
+(defun handle-create-map (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (title (getf params :|title|))
+          (uid (getf params :|uid|))
+          (visibility (getf params :|visibility|)))
+     (when (and title uid visibility)
+           (models.maps:create-map title uid visibility)
+           :success))))
 
-; (defun stop-mindmap-server ()
-;   "Mindmap サーバー停止"
-;   (websocket-app:stop-app))
+(defun handle-update-map (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          (uid (getf params :|uid|))
+          (title (getf params :|title|))
+          (visibility (getf params :|visibility|)))
+     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
+     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
+     :success)))
 
-; (asdf:load-system :mindmap)
-; (start-mindmap-server)
-; (stop-mindmap-server)
+(defun handle-delete-map (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:delete-map id)))))
 
-;  (uiop:run-program "clear" :output *standard-output*)
+(defun handle-get-map-details (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (format *error-output* "Get map details called with ID=~A~%" id)
+     (when (and id (not (string= id "")))
+           (services.mindmaps:get-map-details id)))))
