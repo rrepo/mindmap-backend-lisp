@@ -27,5 +27,6 @@
                 (:file "controllers/map-members")
                 (:file "controllers/map-invitations")
                 (:file "utils/env")
+                (:file "utils/server-utils")
                 (:file "controllers/server")
                 (:file "main"))) ;; ← エントリーポイント
