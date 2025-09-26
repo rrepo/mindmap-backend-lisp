@@ -115,22 +115,22 @@
                '(200 (:content-type "text/plain") ("Hello from /")))
 
 (defroute-http "/user"
-               (with-api-response (controllers.users:get-user env)))
+               (with-api-response (controllers.users:handle-get-user env)))
 
 (defroute-http "/users"
-               (with-api-response (controllers.users:get-users env)))
+               (with-api-response (controllers.users:handle-get-users env)))
 
 (defroute-http "/all-users"
-               (with-api-response (controllers.users:get-all-users)))
+               (with-api-response (controllers.users:handle-get-all-users)))
 
 (defroute-http "/create-user"
-               (with-api-response (controllers.users:create-user env)))
+               (with-api-response (controllers.users:handle-create-user env)))
 
 (defroute-http "/update-user"
-               (with-api-response (controllers.users:update-user env)))
+               (with-api-response (controllers.users:handle-update-user env)))
 
 (defroute-http "/delete-user"
-               (with-api-response (controllers.users:delete-user env)))
+               (with-api-response (controllers.users:handle-delete-user env)))
 
 (defroute-http "/get-map"
                (with-api-response (controllers.maps:handle-get-map env)))
@@ -148,49 +148,49 @@
                (with-api-response (controllers.maps:handle-delete-map env)))
 
 (defroute-http "/all-nodes"
-               (with-api-response (controllers.nodes:get-all-nodes)))
+               (with-api-response (controllers.nodes:handle-get-all-nodes)))
 
 (defroute-http "/create-node"
-               (with-api-response (controllers.nodes:create-node env)))
+               (with-api-response (controllers.nodes:handle-create-node env)))
 
 (defroute-http "/update-node"
-               (with-api-response (controllers.nodes:update-node env)))
+               (with-api-response (controllers.nodes:handle-update-node env)))
 
 (defroute-http "/delete-node"
-               (with-api-response (controllers.nodes:delete-node env)))
+               (with-api-response (controllers.nodes:handle-delete-node env)))
 
 (defroute-http "/get-map-member"
-               (with-api-response (controllers.map-members:get-map-member env)))
+               (with-api-response (controllers.map-members:handle-get-map-member env)))
 
 (defroute-http "/get-map-members-by-map-id"
-               (with-api-response (controllers.map-members:get-map-members-by-map-id env)))
+               (with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
 
 (defroute-http "/get-map-members-by-user-uid"
-               (with-api-response (controllers.map-members:get-map-members-by-user-uid env)))
+               (with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
 
 (defroute-http "/all-map-members"
-               (with-api-response (controllers.map-members:get-all-map-members)))
+               (with-api-response (controllers.map-members:handle-get-all-map-members)))
 
 (defroute-http "/create-map-member"
-               (with-api-response (controllers.map-members:create-map-member env)))
+               (with-api-response (controllers.map-members:handle-create-map-member env)))
 
 (defroute-http "/delete-map-member"
-               (with-api-response (controllers.map-members:delete-map-member env)))
+               (with-api-response (controllers.map-members:handle-delete-map-member env)))
 
 (defroute-http "/get-map-invitation"
-               (with-api-response (controllers.map-invitations:get-map-invitation env)))
+               (with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
 
 (defroute-http "/get-map-invitation-by-token"
-               (with-api-response (controllers.map-invitations:get-map-invitation-by-token env)))
+               (with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
 
 (defroute-http "/get-map-invitation-by-map-id"
-               (with-api-response (controllers.map-invitations:get-map-invitation-by-map-id env)))
+               (with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-id env)))
 
 (defroute-http "/create-map-invitation"
-               (with-api-response (controllers.map-invitations:create-map-invitation env)))
+               (with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
 
 (defroute-http "/delete-map-invitation"
-               (with-api-response (controllers.map-invitations:delete-map-invitation env)))
+               (with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
 
 (defroute-http "/get-map-details"
                (with-api-response (controllers.maps:handle-get-map-details env)))

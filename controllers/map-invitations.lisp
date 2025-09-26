@@ -1,14 +1,14 @@
 (defpackage :controllers.map-invitations
   (:use :cl :postmodern)
-  (:export :get-map-invitation
-           :get-map-invitation-by-token
-           :get-map-invitation-by-map-id
-           :create-map-invitation
-           :delete-map-invitation))
+  (:export :handle-get-map-invitation
+           :handle-get-map-invitation-by-token
+           :handle-get-map-invitation-by-map-id
+           :handle-create-map-invitation
+           :handle-delete-map-invitation))
 
 (in-package :controllers.map-invitations)
 
-(defun get-map-invitation (env)
+(defun handle-get-map-invitation (env)
   "ID指定で map_member を取得"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
@@ -17,7 +17,7 @@
      (when id
            (models.map-invitations:get-invitation id)))))
 
-(defun get-map-invitation-by-token (env)
+(defun handle-get-map-invitation-by-token (env)
   "ID指定で map_member を取得"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
@@ -27,7 +27,7 @@
      (when token
            (models.map-invitations:get-invitation-by-token token)))))
 
-(defun get-map-invitation-by-map-id (env)
+(defun handle-get-map-invitation-by-map-id (env)
   "ID指定で map_member を取得"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
@@ -37,7 +37,7 @@
      (when map-id
            (models.map-invitations:get-invitations-by-map-id map-id)))))
 
-(defun create-map-invitation (env)
+(defun handle-create-map-invitation (env)
   "map_id と user_uid を指定して map_member を追加"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
@@ -51,7 +51,7 @@
                (models.map-invitations:create-invitation map-id user-uid))
            :success))))
 
-(defun delete-map-invitation (env)
+(defun handle-delete-map-invitation (env)
   "指定 ID の map_member を削除"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))

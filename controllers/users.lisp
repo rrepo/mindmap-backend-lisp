@@ -1,10 +1,10 @@
 (defpackage :controllers.users
   (:use :cl :jonathan)
-  (:export get-all-users get-user get-users create-user update-user delete-user))
+  (:export handle-get-all-users handle-get-user handle-get-users handle-create-user handle-update-user handle-delete-user))
 
 (in-package :controllers.users)
 
-(defun get-user (env)
+(defun handle-get-user (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
@@ -12,7 +12,7 @@
      (when (and uid (not (string= uid "")))
            (models.users:get-user uid)))))
 
-(defun get-users (env)
+(defun handle-get-users (env)
   "配列パラメータ形式を処理"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
@@ -31,12 +31,12 @@
                    (list (models.users:get-user (first uids)))
                    (models.users:get-users uids))))))))
 
-(defun get-all-users ()
+(defun handle-get-all-users ()
   (utils:with-invalid
    (format *error-output* "Get all users called~%")
    (models.users:get-all-users)))
 
-(defun create-user (env)
+(defun handle-create-user (env)
   "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
@@ -47,7 +47,7 @@
            (models.users:create-user uid name img)
            :success))))
 
-(defun update-user (env)
+(defun handle-update-user (env)
   (utils:with-invalid
    (format *error-output* "Update user called~%")
    (let* ((params (utils:extract-json-params env))
@@ -58,7 +58,7 @@
      (models.users:update-user uid :name name :img img)
      :success)))
 
-(defun delete-user (env)
+(defun handle-delete-user (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
