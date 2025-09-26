@@ -1,8 +1,8 @@
-(defpackage :server-utils
-  (:use :cl :clack :websocket-driver :cl-dotenv :websocket-app)
-  (:export))
+; (defpackage :server-utils
+;   (:use :cl :clack :websocket-driver :cl-dotenv :websocket-app)
+;   (:export))
 
-(in-package :server-utils)
+; (in-package :server-utils)
 
 ; (defvar *http-routes* (make-hash-table :test #'equal))
 ; (defvar *ws-routes* (make-hash-table :test #'equal))

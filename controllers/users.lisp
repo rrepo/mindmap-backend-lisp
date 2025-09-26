@@ -2,9 +2,6 @@
   (:use :cl :jonathan)
   (:export get-all-users get-user get-users create-user update-user delete-user))
 
-(load "./models/users.lisp")
-(load "./utils/utils.lisp")
-
 (in-package :controllers.users)
 
 (defun get-user (env)

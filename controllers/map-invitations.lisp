@@ -6,9 +6,6 @@
            :create-map-invitation
            :delete-map-invitation))
 
-(load "./models/map-invitations.lisp")
-(load "./utils/utils.lisp")
-
 (in-package :controllers.map-invitations)
 
 (defun get-map-invitation (env)

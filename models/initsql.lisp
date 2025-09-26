@@ -1,18 +1,23 @@
-(ql:quickload :postmodern)
-(use-package :postmodern)
-(ql:quickload :split-sequence)
-(use-package :split-sequence)
+(defpackage :init-db-utils
+  (:use :cl)
+  (:import-from :postmodern
+                :connect
+                :*database*
+                :execute
+                :connect-toplevel
+                :query
+                :with-transaction)
+  (:import-from :split-sequence
+                :split-sequence)
+  (:export
+   init-db))
+
+
+(in-package :init-db-utils)
 
 (defparameter *db* (connect "mindmap" "postgres" "password" "localhost"))
 
 (setf *database* *db*)
-
-(defpackage :init-db-utils
-  (:use :cl :postmodern :split-sequence)
-  (:export
-   init-db))
-
-(in-package :init-db-utils)
 
 (defun load-sql-file (file-path)
   "指定したSQLファイルを文字列として読み込む。"

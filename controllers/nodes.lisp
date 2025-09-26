@@ -2,9 +2,6 @@
   (:use :cl :jonathan)
   (:export get-all-nodes create-node update-node delete-node))
 
-(load "./models/nodes.lisp")
-(load "./utils/utils.lisp")
-
 (in-package :controllers.nodes)
 
 (defun get-all-nodes ()

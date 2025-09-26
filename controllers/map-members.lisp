@@ -7,9 +7,6 @@
            create-map-member
            delete-map-member))
 
-(load "./models/map-members.lisp")
-(load "./utils/utils.lisp")
-
 (in-package :controllers.map-members)
 
 (defun get-map-member (env)

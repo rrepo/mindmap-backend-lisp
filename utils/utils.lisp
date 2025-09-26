@@ -22,7 +22,7 @@
 (defun safe-parse-json (json-string)
   "Parse JSON safely. Returns plist or :invalid."
   (handler-case
-      (jonathan:parse json-string :keywordize t)
+      (jonathan:parse json-string :keywords-to-read t)
     (error (e)
       (format *error-output* "JSON parse error: ~A~%" e)
       :invalid)))
@@ -77,5 +77,3 @@
     ;; パディングを削除してさらに短く
     (string-right-trim "="
                        (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))
-
-                       
