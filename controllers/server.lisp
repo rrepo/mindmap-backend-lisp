@@ -53,7 +53,7 @@
                      '("Not Found")))))))
 
 (defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /22")))
+               '(200 (:content-type "text/plain") ("Hello from /565")))
 
 (defroute-http "/user"
                (server-utils:with-api-response (controllers.users:handle-get-user env)))

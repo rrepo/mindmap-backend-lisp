@@ -8,6 +8,9 @@
           (reload-dev))
     (funcall app env)))
 
+(defvar *file-mod-times* (make-hash-table :test 'equal)
+        "ファイルごとの最終更新時刻を保持する。")
+
 (defun reload-dev ()
   (dolist (file '("utils/utils"
                   "models/initsql"
@@ -25,14 +28,20 @@
                   "utils/env"
                   "utils/server-utils"
                   "controllers/server"))
-    (format t "~%Reloading ~A...~%" file)
-    (handler-case
-        (load (asdf:system-relative-pathname "mindmap"
-                                             (format nil "~A.lisp" file)))
-      (error (e)
-        (format t "~%✗ Error while loading ~A: ~A~%" file e)
-        ;; エラーが出たらそれ以降はロードしない
-        (return)))))
+    (let* ((pathname (asdf:system-relative-pathname "mindmap"
+                                                    (format nil "~A.lisp" file)))
+           (new-time (file-write-date pathname))
+           (old-time (gethash file *file-mod-times* 0)))
+      (when (> new-time old-time)
+            (format t "~%Reloading ~A...~%" file)
+            (handler-case
+                (progn
+                 (load pathname)
+                 (setf (gethash file *file-mod-times*) new-time))
+              (error (e)
+                (format t "~%✗ Error while loading ~A: ~A~%" file e)
+                ;; エラーの場合は更新時刻を更新しない
+                (return)))))))
 
 
 (defun start-mindmap-server ()
