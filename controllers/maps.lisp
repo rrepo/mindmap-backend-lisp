@@ -10,7 +10,7 @@
 (in-package :controllers.maps)
 (defun handle-get-map (env)
   (utils:with-invalid
-   (format *error-output* "Get map called!!!!~%")
+   (format *error-output* "Get map calleddd!!fdfdfd~%")
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
