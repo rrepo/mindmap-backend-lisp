@@ -1,83 +1,82 @@
-(defpackage :utils
-  (:use :cl :jonathan)
-  (:import-from :cl-ppcre :split)
-  (:import-from :flexi-streams :octets-to-string)
-  (:import-from :frugal-uuid :make-v4 :to-string)
-  (:import-from :ironclad :make-random-salt)
-  (:import-from :cl-base64 :usb8-array-to-base64-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token))
+(in-package :cl-user)
 
-(in-package :utils)
+(defparameter *dev-mode* t)
 
-(defun header-value (headers name)
-  (gethash name headers))
+(defvar *reload-error* nil
+        "最後のリロードエラーを保持する。")
 
-(defun parse-request-body-string (input content-length)
-  "リクエストボディを読み取って文字列として返す"
-  (when (and input content-length (> content-length 0))
-        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
-          (read-sequence buffer input)
-          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
+(defvar *file-mod-times* (make-hash-table :test 'equal)
+        "ファイルごとの最終更新時刻を保持する。")
 
-(defun safe-parse-json (json-string)
-  "Parse JSON safely. Returns plist or :invalid. Logs input and result."
-  (handler-case
-      (let ((result (jonathan:parse json-string
-                                    :junk-allowed t)))
-        result)
-    (error (e)
-      (format *error-output* "[ERROR] JSON parse error: ~A~%" e)
-      :invalid)))
+(defun dev-reloader (app)
+  (lambda (env)
+    (when *dev-mode*
+          (reload-dev))
+    ;; リロードエラーがあればエラーレスポンスを返す
+    (if *reload-error*
+        (list 500
+              '(:content-type "text/plain; charset=utf-8")
+              (list (format nil "Development Error: Failed to reload file~%~%~A"
+                      *reload-error*)))
+        (funcall app env))))
 
+(defun reload-dev ()
+  (dolist (file '("utils/utils"
+                  "utils/verify"
+                  "models/initsql"
+                  "models/users"
+                  "models/maps"
+                  "models/nodes"
+                  "models/map-members"
+                  "models/map-invitations"
+                  "services/mindmaps"
+                  "controllers/users"
+                  "controllers/maps"
+                  "controllers/nodes"
+                  "controllers/map-members"
+                  "controllers/map-invitations"
+                  "utils/env"
+                  "utils/server-utils"
+                  "controllers/server"))
+    (let* ((pathname (asdf:system-relative-pathname "mindmap"
+                                                    (format nil "~A.lisp" file)))
+           (new-time (file-write-date pathname))
+           (old-time (gethash file *file-mod-times* 0)))
+      (when (> new-time old-time)
+            (format t "~%Reloading ~A...~%" file)
+            (handler-case
+                (progn
+                 (load pathname)
+                 (setf (gethash file *file-mod-times*) new-time)
+                 ;; 成功したらエラーをクリア
+                 (setf *reload-error* nil))
+              (error (e)
+                (format t "~%✗ Error while loading ~A: ~A~%" file e)
+                ;; エラー情報を保存（更新時刻は更新しない）
+                (setf *reload-error*
+                  (format nil "File: ~A~%Error: ~A" file e))
+                (return)))))))
 
-(defun parse-query-string-alist (qs)
-  "クエリ文字列をALISTに変換"
-  (when qs
-        (mapcar (lambda (pair)
-                  (destructuring-bind (k v)
-                      (uiop:split-string pair :separator "=")
-                    (cons k v)))
-            (uiop:split-string qs :separator "&"))))
+(defun start-mindmap-server ()
+  (utils-env:load-env)
+  (init-db-utils:init-db)
+  (format t "Starting Mindmap server on port 5000...~%")
+  (setf *server*
+    (clack:clackup
+     (dev-reloader websocket-app::*my-app*)
+     :server :woo
+     :port 5000)))
 
-(defun parse-query-string-plist (qs)
-  "クエリ文字列を PLIST に変換"
-  (when qs
-        (apply #'append
-          (mapcar (lambda (pair)
-                    (destructuring-bind (k v)
-                        (uiop:split-string pair :separator "=")
-                      (list (intern (string-upcase k) :keyword) v)))
-              (uiop:split-string qs :separator "&")))))
+(start-mindmap-server)
 
-(defmacro with-invalid (&body body)
-  `(handler-case
-       (progn ,@body) ; ← そのまま返す。nilはnilのまま
-     (error (e)
-       (format *error-output* "ERROR: ~A~%" e)
-       :invalid)))
+; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
 
+; (defun stop-mindmap-server ()
+;   "Mindmap サーバー停止"
+;   (websocket-app:stop-app))
 
-(defun extract-json-params (env)
-  "env からリクエストボディを取り出して JSON を plist に変換する。
-   パースに失敗したら :invalid を返す。ログ付き。"
-  (with-invalid
-   (let* ((headers (getf env :headers))
-          (content-length (parse-integer
-                            (or (header-value headers "content-length") "0")
-                            :junk-allowed t))
-          (input (getf env :raw-body))
-          (body-string (parse-request-body-string input content-length))
-          (params (safe-parse-json body-string)))
-     params)))
+; (asdf:load-system :mindmap)
+; (start-mindmap-server)
+; (stop-mindmap-server)
 
-
-(defun uuid-string ()
-  "新しい UUID を文字列で返す (ハイフンありの標準形式)."
-  (to-string (make-v4)))
-
-(defun generate-secure-invite-token (&optional (bytes 32))
-  "推奨: Base64 URL-safeで招待トークンを生成"
-  (let ((random-bytes (ironclad:make-random-salt bytes)))
-    ;; パディングを削除してさらに短く
-    (string-right-trim "="
-                       (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))
+;  (uiop:run-program "clear" :output *standard-output*)

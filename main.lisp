@@ -2,14 +2,23 @@
 
 (defparameter *dev-mode* t)
 
+(defvar *reload-error* nil
+        "最後のリロードエラーを保持する。")
+
+(defvar *file-mod-times* (make-hash-table :test 'equal)
+        "ファイルごとの最終更新時刻を保持する。")
+
 (defun dev-reloader (app)
   (lambda (env)
     (when *dev-mode*
           (reload-dev))
-    (funcall app env)))
-
-(defvar *file-mod-times* (make-hash-table :test 'equal)
-        "ファイルごとの最終更新時刻を保持する。")
+    ;; リロードエラーがあればエラーレスポンスを返す
+    (if *reload-error*
+        (list 500
+              '(:content-type "text/plain; charset=utf-8")
+              (list (format nil "Development Error: Failed to reload file~%~%~A"
+                      *reload-error*)))
+        (funcall app env))))
 
 (defun reload-dev ()
   (dolist (file '("utils/utils"
@@ -38,12 +47,15 @@
             (handler-case
                 (progn
                  (load pathname)
-                 (setf (gethash file *file-mod-times*) new-time))
+                 (setf (gethash file *file-mod-times*) new-time)
+                 ;; 成功したらエラーをクリア
+                 (setf *reload-error* nil))
               (error (e)
                 (format t "~%✗ Error while loading ~A: ~A~%" file e)
-                ;; エラーの場合は更新時刻を更新しない
+                ;; エラー情報を保存（更新時刻は更新しない）
+                (setf *reload-error*
+                  (format nil "File: ~A~%Error: ~A" file e))
                 (return)))))))
-
 
 (defun start-mindmap-server ()
   (utils-env:load-env)
