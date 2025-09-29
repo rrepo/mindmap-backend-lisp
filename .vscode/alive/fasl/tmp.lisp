@@ -1,166 +1,83 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver :cl-dotenv)
-  (:export :start-app :*my-app* :stop-app))
+(defpackage :utils
+  (:use :cl :jonathan)
+  (:import-from :cl-ppcre :split)
+  (:import-from :flexi-streams :octets-to-string)
+  (:import-from :frugal-uuid :make-v4 :to-string)
+  (:import-from :ironclad :make-random-salt)
+  (:import-from :cl-base64 :usb8-array-to-base64-string)
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token))
 
-(in-package :websocket-app)
+(in-package :utils)
 
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
+(defun header-value (headers name)
+  (gethash name headers))
 
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
-         ,@body
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
+(defun parse-request-body-string (input content-length)
+  "リクエストボディを読み取って文字列として返す"
+  (when (and input content-length (> content-length 0))
+        (let ((buffer (make-array content-length :element-type '(unsigned-byte 8))))
+          (read-sequence buffer input)
+          (flexi-streams:octets-to-string buffer :external-format :utf-8))))
 
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
-
-(defvar *my-app*
-        ; (with-cors
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (method (getf env :request-method)))
-            (cond
-             ;; OPTIONSリクエスト (CORS preflight)
-             ((string= method "OPTIONS")
-               (list 200
-                     '(:content-type "text/plain")
-                     '("OK")))
-
-             ;; トークン認証（有効）
-             ((not (server-utils:validate-service-token env))
-               (list 401
-                     '(:content-type "text/plain")
-                     '("Unauthorized")))
-
-             ;; HTTPルート
-             ((gethash path *http-routes*)
-               (funcall (gethash path *http-routes*) env))
-
-             ;; WSルート
-             ((gethash path *ws-routes*)
-               (funcall (gethash path *ws-routes*) env))
-
-             ;; Not Found
-             (t
-               (list 404
-                     '(:content-type "text/plain")
-                     '("Not Found")))))))
-
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /565")))
-
-(defroute-http "/user"
-               (server-utils:with-api-response (controllers.users:handle-get-user env)))
-
-(defroute-http "/users"
-               (server-utils:with-api-response (controllers.users:handle-get-users env)))
-
-(defroute-http "/all-users"
-               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
-
-(defroute-http "/create-user"
-               (server-utils:with-api-response (controllers.users:handle-create-user env)))
-
-(defroute-http "/update-user"
-               (server-utils:with-api-response (controllers.users:handle-update-user env)))
-
-(defroute-http "/delete-user"
-               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
-
-(defroute-http "/get-map"
-               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
-
-(defroute-http "/all-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
-
-(defroute-http "/create-map"
-               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
-
-(defroute-http "/update-map"
-               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
-
-(defroute-http "/delete-map"
-               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
-
-(defroute-http "/all-nodes"
-               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
-
-(defroute-http "/create-node"
-               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
-
-(defroute-http "/update-node"
-               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
-
-(defroute-http "/delete-node"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
-
-(defroute-http "/get-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
-
-(defroute-http "/get-map-members-by-map-id"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
-
-(defroute-http "/get-map-members-by-user-uid"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
-
-(defroute-http "/all-map-members"
-               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
-
-(defroute-http "/create-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
-
-(defroute-http "/delete-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
-
-(defroute-http "/get-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
-
-(defroute-http "/get-map-invitation-by-token"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
-
-(defroute-http "/get-map-invitation-by-map-id"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-id env)))
-
-(defroute-http "/create-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
-
-(defroute-http "/delete-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
-
-(defroute-http "/get-map-details"
-               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
+(defun safe-parse-json (json-string)
+  "Parse JSON safely. Returns plist or :invalid. Logs input and result."
+  (handler-case
+      (let ((result (jonathan:parse json-string
+                                    :junk-allowed t)))
+        result)
+    (error (e)
+      (format *error-output* "[ERROR] JSON parse error: ~A~%" e)
+      :invalid)))
 
 
-(defvar *current-server* nil
-        "現在起動中の Mindmap サーバーを保持。")
+(defun parse-query-string-alist (qs)
+  "クエリ文字列をALISTに変換"
+  (when qs
+        (mapcar (lambda (pair)
+                  (destructuring-bind (k v)
+                      (uiop:split-string pair :separator "=")
+                    (cons k v)))
+            (uiop:split-string qs :separator "&"))))
 
-(defun start-app (&key (port 5000))
-  "サーバーを起動してサーバーオブジェクトを返す。"
-  ;; すでにサーバーがあれば停止してから起動
-  (when *current-server*
-        (stop-app))
-  (format t "Starting Mindmap server on port ~a...~%" port)
-  ;; Clack のサーバーを起動してオブジェクトを保存
-  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
-  *current-server*)
+(defun parse-query-string-plist (qs)
+  "クエリ文字列を PLIST に変換"
+  (when qs
+        (apply #'append
+          (mapcar (lambda (pair)
+                    (destructuring-bind (k v)
+                        (uiop:split-string pair :separator "=")
+                      (list (intern (string-upcase k) :keyword) v)))
+              (uiop:split-string qs :separator "&")))))
 
-(defun stop-app ()
-  "現在のサーバーを停止する。"
-  (when *current-server*
-        (format t "Stopping Mindmap server...~%")
-        (ignore-errors
-          ;; Clack/Woo 停止関数
-          (clack:stop *current-server*))
-        (setf *current-server* nil)))
+(defmacro with-invalid (&body body)
+  `(handler-case
+       (progn ,@body) ; ← そのまま返す。nilはnilのまま
+     (error (e)
+       (format *error-output* "ERROR: ~A~%" e)
+       :invalid)))
+
+
+(defun extract-json-params (env)
+  "env からリクエストボディを取り出して JSON を plist に変換する。
+   パースに失敗したら :invalid を返す。ログ付き。"
+  (with-invalid
+   (let* ((headers (getf env :headers))
+          (content-length (parse-integer
+                            (or (header-value headers "content-length") "0")
+                            :junk-allowed t))
+          (input (getf env :raw-body))
+          (body-string (parse-request-body-string input content-length))
+          (params (safe-parse-json body-string)))
+     params)))
+
+
+(defun uuid-string ()
+  "新しい UUID を文字列で返す (ハイフンありの標準形式)."
+  (to-string (make-v4)))
+
+(defun generate-secure-invite-token (&optional (bytes 32))
+  "推奨: Base64 URL-safeで招待トークンを生成"
+  (let ((random-bytes (ironclad:make-random-salt bytes)))
+    ;; パディングを削除してさらに短く
+    (string-right-trim "="
+                       (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))

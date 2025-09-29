@@ -20,12 +20,15 @@
           (flexi-streams:octets-to-string buffer :external-format :utf-8))))
 
 (defun safe-parse-json (json-string)
-  "Parse JSON safely. Returns plist or :invalid."
+  "Parse JSON safely. Returns plist or :invalid. Logs input and result."
   (handler-case
-      (jonathan:parse json-string :keywords-to-read t)
+      (let ((result (jonathan:parse json-string
+                                    :junk-allowed t)))
+        result)
     (error (e)
-      (format *error-output* "JSON parse error: ~A~%" e)
+      (format *error-output* "[ERROR] JSON parse error: ~A~%" e)
       :invalid)))
+
 
 (defun parse-query-string-alist (qs)
   "クエリ文字列をALISTに変換"
@@ -56,7 +59,7 @@
 
 (defun extract-json-params (env)
   "env からリクエストボディを取り出して JSON を plist に変換する。
-   パースに失敗したら :invalid を返す。"
+   パースに失敗したら :invalid を返す。ログ付き。"
   (with-invalid
    (let* ((headers (getf env :headers))
           (content-length (parse-integer
@@ -66,6 +69,7 @@
           (body-string (parse-request-body-string input content-length))
           (params (safe-parse-json body-string)))
      params)))
+
 
 (defun uuid-string ()
   "新しい UUID を文字列で返す (ハイフンありの標準形式)."

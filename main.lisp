@@ -13,6 +13,7 @@
 
 (defun reload-dev ()
   (dolist (file '("utils/utils"
+                  "utils/verify"
                   "models/initsql"
                   "models/users"
                   "models/maps"
@@ -55,6 +56,8 @@
      :port 5000)))
 
 (start-mindmap-server)
+
+; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
 
 ; (defun stop-mindmap-server ()
 ;   "Mindmap サーバー停止"
