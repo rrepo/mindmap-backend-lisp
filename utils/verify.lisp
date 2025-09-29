@@ -1,3 +1,9 @@
+(defpackage :verify-token
+  (:use :cl :jonathan :cl-base64 :babel)
+  (:export :authenticate-and-get-uid))
+
+(in-package :verify-token)
+
 ;; 必要なライブラリの読み込み
 (ql:quickload '(:jonathan :cl-base64 :babel))
 
@@ -204,11 +210,11 @@
   (format t "~%=== Full Authentication ===~%")
   (let ((uid (authenticate-and-get-uid *token* nil)))
     (if uid
-        (format t "~%🎉 Successfully authenticated with UID: ~A~%" uid))))
-
-;; 全クレーム表示
-; (format t "~%")
-; (show-all-claims *token*)
-
-;; デモを自動実行（実際のトークンが設定されている場合のみ）
-(demo-authentication)
+        (format t "~%🎉 Successfully authenticated with UID: ~A~%" uid)
+        (progn
+         (format t "~%💥 Authentication failed~%")
+         (format t "~%=== Simple UID Extraction ===~%")
+         (let ((uid (get-uid-simple *token*)))
+           (if uid
+               (format t "UID extracted: ~A~%" uid)
+               (format t "Failed to extract UID~%")))))))

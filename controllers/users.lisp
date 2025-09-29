@@ -1,6 +1,6 @@
 (defpackage :controllers.users
   (:use :cl :jonathan)
-  (:export handle-get-all-users handle-get-user handle-get-users handle-create-user handle-update-user handle-delete-user))
+  (:export handle-get-all-users handle-get-user handle-get-users handle-create-user handle-update-user handle-delete-user handle-login))
 
 (in-package :controllers.users)
 
@@ -39,6 +39,7 @@
 (defun handle-create-user (env)
   "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
   (utils:with-invalid
+   (format *error-output* "Create user called~%")
    (let* ((params (utils:extract-json-params env))
           (uid (getf params :|uid|))
           (name (getf params :|name|))
@@ -66,3 +67,9 @@
      (format *error-output* "Delete params: uid=~A~%" uid)
      (when (and uid (not (string= uid "")))
            (models.users:delete-user uid)))))
+
+(defun handle-login (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (format *error-output* "Login called!!!!~%")
+   "test"))

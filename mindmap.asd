@@ -8,12 +8,14 @@
                :jsown
                :local-time
                :frugal-uuid
+               :babel
                :ironclad
                :cl-base64
                :cl-dotenv)
   :serial t
   :components (
                 (:file "utils/utils")
+                (:file "utils/verify")
                 (:file "models/initsql")
                 (:file "models/users")
                 (:file "models/maps")
