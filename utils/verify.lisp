@@ -172,7 +172,7 @@
                     (progn
                      (format t "~%✅ Authentication successful!~%")
                      (format t "Authenticated UID: ~A~%" uid)
-                     uid)
+                     (cons uid name))
                     (progn
                      (format t "~%❌ Token validation failed~%")
                      nil))))

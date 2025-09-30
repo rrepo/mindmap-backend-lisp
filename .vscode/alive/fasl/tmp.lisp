@@ -1,82 +1,86 @@
-(in-package :cl-user)
+(defpackage :controllers.users
+  (:use :cl :jonathan)
+  (:export handle-get-all-users handle-get-user handle-get-users handle-create-user handle-update-user handle-delete-user handle-login))
 
-(defparameter *dev-mode* t)
+(in-package :controllers.users)
 
-(defvar *reload-error* nil
-        "最後のリロードエラーを保持する。")
+(defun handle-get-user (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (uid (getf params :UID)))
+     (when (and uid (not (string= uid "")))
+           (models.users:get-user uid)))))
 
-(defvar *file-mod-times* (make-hash-table :test 'equal)
-        "ファイルごとの最終更新時刻を保持する。")
+(defun handle-get-users (env)
+  "配列パラメータ形式を処理"
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs)))
+     (let ((uid-values '()))
+       (loop for (key value) on params by #'cddr do
+               (when (or (eq key :UID)
+                         (and (stringp (symbol-name key))
+                              (search "UID" (symbol-name key))))
+                     (push value uid-values)))
 
-(defun dev-reloader (app)
-  (lambda (env)
-    (when *dev-mode*
-          (reload-dev))
-    ;; リロードエラーがあればエラーレスポンスを返す
-    (if *reload-error*
-        (list 500
-              '(:content-type "text/plain; charset=utf-8")
-              (list (format nil "Development Error: Failed to reload file~%~%~A"
-                      *reload-error*)))
-        (funcall app env))))
+       (let ((uids (nreverse (remove-if (lambda (uid) (or (null uid) (string= uid ""))) uid-values))))
+         (format *error-output* "Array UIDs: ~A~%" uids)
+         (when uids
+               (if (= (length uids) 1)
+                   (list (models.users:get-user (first uids)))
+                   (models.users:get-users uids))))))))
 
-(defun reload-dev ()
-  (dolist (file '("utils/utils"
-                  "utils/verify"
-                  "models/initsql"
-                  "models/users"
-                  "models/maps"
-                  "models/nodes"
-                  "models/map-members"
-                  "models/map-invitations"
-                  "services/mindmaps"
-                  "controllers/users"
-                  "controllers/maps"
-                  "controllers/nodes"
-                  "controllers/map-members"
-                  "controllers/map-invitations"
-                  "utils/env"
-                  "utils/server-utils"
-                  "controllers/server"))
-    (let* ((pathname (asdf:system-relative-pathname "mindmap"
-                                                    (format nil "~A.lisp" file)))
-           (new-time (file-write-date pathname))
-           (old-time (gethash file *file-mod-times* 0)))
-      (when (> new-time old-time)
-            (format t "~%Reloading ~A...~%" file)
-            (handler-case
-                (progn
-                 (load pathname)
-                 (setf (gethash file *file-mod-times*) new-time)
-                 ;; 成功したらエラーをクリア
-                 (setf *reload-error* nil))
-              (error (e)
-                (format t "~%✗ Error while loading ~A: ~A~%" file e)
-                ;; エラー情報を保存（更新時刻は更新しない）
-                (setf *reload-error*
-                  (format nil "File: ~A~%Error: ~A" file e))
-                (return)))))))
+(defun handle-get-all-users ()
+  (utils:with-invalid
+   (format *error-output* "Get all users called~%")
+   (models.users:get-all-users)))
 
-(defun start-mindmap-server ()
-  (utils-env:load-env)
-  (init-db-utils:init-db)
-  (format t "Starting Mindmap server on port 5000...~%")
-  (setf *server*
-    (clack:clackup
-     (dev-reloader websocket-app::*my-app*)
-     :server :woo
-     :port 5000)))
+(defun handle-create-user (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (format *error-output* "Create user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|))
+          (img (getf params :|img|)))
+     (when (and uid name)
+           (models.users:create-user uid name img)
+           :success))))
 
-(start-mindmap-server)
+(defun handle-update-user (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|))
+          (img (getf params :|img|)))
+     (format *error-output* "Update params: uid=~A, name=~A, img=~A~%" uid name img)
+     (models.users:update-user uid :name name :img img)
+     :success)))
 
-; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
+(defun handle-delete-user (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (uid (getf params :UID)))
+     (format *error-output* "Delete params: uid=~A~%" uid)
+     (when (and uid (not (string= uid "")))
+           (models.users:delete-user uid)))))
 
-; (defun stop-mindmap-server ()
-;   "Mindmap サーバー停止"
-;   (websocket-app:stop-app))
-
-; (asdf:load-system :mindmap)
-; (start-mindmap-server)
-; (stop-mindmap-server)
-
-;  (uiop:run-program "clear" :output *standard-output*)
+(defun handle-login (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (format *error-output* "Login called!!!!~%")
+   (let* ((params (utils:extract-json-params env))
+          (token (getf params :|token|))
+          (verify-info (verify-token:authenticate-and-get-uid token))
+          (uid (car verify-info))
+          (name (cdr verify-info)))
+     ;; ← ここでログ出力
+     (format *error-output* "Token param: ~A~%" token)
+     (format *error-output* "Authenticated UID: ~A~%" uid)
+     (format *error-output* "Authenticated name!!!!: ~A~%" name)
+     (when (and uid name)
+           (models.users:create-user uid name nil)
+           :success))))
