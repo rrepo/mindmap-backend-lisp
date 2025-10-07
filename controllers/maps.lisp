@@ -2,6 +2,7 @@
   (:use :cl :jonathan)
   (:export handle-get-all-maps
            handle-get-map
+           handle-get-maps-by-uid
            handle-create-map
            handle-update-map
            handle-delete-map
@@ -21,6 +22,18 @@
              (format *error-output* "nodes: ~A~%" nodes)
              ;; map は plist なので append で nodes を追加
              (append map (list :nodes nodes)))))))
+
+(defun handle-get-maps-by-uid (env)
+  (utils:with-invalid
+   (format *error-output* "Get map calleddd uid !!fdfdfd~%")
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (format *error-output* "Get maps by uid called with ID=~A~%" id)
+           (let* ((map (models.maps:get-maps-by-user-uid id)))
+             (format *error-output* "Map: ~A~%" map)
+             map)))))
 
 (defun handle-get-all-maps ()
   (utils:with-invalid
