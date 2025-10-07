@@ -31,7 +31,7 @@
     FROM maps
     WHERE owner_uid = $1"
    owner-uid
-   :rows :plist))
+   :rows :plists))
 
 (defun create-map (title owner-uid &optional (visibility "private"))
   "Insert a new map."

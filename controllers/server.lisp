@@ -82,6 +82,9 @@
 (defroute-http "/all-maps"
                (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
 
+(defroute-http "/get-maps-by-uid"
+               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
+
 (defroute-http "/create-map"
                (server-utils:with-api-response (controllers.maps:handle-create-map env)))
 

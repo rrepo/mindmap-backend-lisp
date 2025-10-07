@@ -10,6 +10,6 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "x-service-token: $TOKEN" \
 #   -d '{"uid":"2223","name":"33","img":"test.png"}'
 
-curl -X POST http://localhost:5000/all-users \
+curl -X POST http://localhost:5000/get-maps-by-uid?id=OtUU0vC1QJSUXUSDJjVV3Zu4v1E3 \
   -H "Content-Type: application/json" \
   -H "x-service-token: $TOKEN" \
