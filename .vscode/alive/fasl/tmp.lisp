@@ -1,81 +1,103 @@
-(defpackage :controllers.maps
-  (:use :cl :jonathan)
-  (:export handle-get-all-maps
-           handle-get-map
-           handle-get-maps-by-uid
-           handle-create-map
-           handle-update-map
-           handle-delete-map
-           handle-get-map-details))
+(defpackage :models.maps
+  (:use :cl :postmodern)
+  (:export get-map
+           get-all-maps
+           get-map-by-uuid
+           get-maps-by-user-uid
+           create-map
+           update-map
+           delete-map))
 
-(in-package :controllers.maps)
-(defun handle-get-map (env)
-  (utils:with-invalid
-   (format *error-output* "Get map calleddd!!fdfdfd~%")
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (let* ((map (models.maps:get-map id))
-                  (nodes (models.nodes:get-nodes-by-map-id id)))
-             (format *error-output* "Map: ~A~%" map)
-             (format *error-output* "nodes: ~A~%" nodes)
-             ;; map は plist なので append で nodes を追加
-             (append map (list :nodes nodes)))))))
+(in-package :models.maps)
 
-(defun handle-get-maps-by-uid (env)
-  (utils:with-invalid
-   (format *error-output* "Get map calleddd uid !!fdfdfd~%")
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (format *error-output* "Get maps by uid called with ID=~A~%" id)
-           (let* ((map (models.maps:get-maps-by-user-uid id)))
-             (format *error-output* "Map: ~A~%" map)
-             map)))))
+(defun get-map (id)
+  "Fetch a map by its ID."
+  (postmodern:query
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+    FROM maps
+    WHERE id = $1"
+   id :rows :plist))
 
-(defun handle-get-all-maps ()
-  (utils:with-invalid
-   (let* ((maps (models.maps:get-all-maps)))
-     maps)))
+(defun get-map-by-uuid (uuid)
+  "Fetch a map by its ID."
+  (postmodern:query
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+    FROM maps
+    WHERE uuid = $1"
+   uuid :rows :plist))
 
-(defun handle-create-map (env)
-  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (title (getf params :|title|))
-          (uid (getf params :|uid|))
-          (visibility (getf params :|visibility|)))
-     (when (and title uid visibility)
-           (models.maps:create-map title uid visibility)
-           :success))))
+(defun get-all-maps ()
+  "Fetch all maps."
+  (postmodern:query
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+    FROM maps"
+   :rows :plists))
 
-(defun handle-update-map (env)
-  (utils:with-invalid
-   (format *error-output* "Update user called~%")
-   (let* ((params (utils:extract-json-params env))
-          (id (getf params :|id|))
-          (uid (getf params :|uid|))
-          (title (getf params :|title|))
-          (visibility (getf params :|visibility|)))
-     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
-     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
-     :success)))
+(defun get-maps-by-user-uid (owner-uid)
+  "Fetch all maps belonging to a user specified by owner UID."
+  (postmodern:query
+   "SELECT id, uuid, title, visibility, created_at, updated_at
+    FROM maps
+    WHERE owner_uid = $1"
+   owner-uid
+   :rows :plists))
 
-(defun handle-delete-map (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:delete-map id)))))
+(defun create-map (title owner-uid &optional (visibility "private"))
+  "Insert a new map."
+  (postmodern:execute
+   "INSERT INTO maps (uuid, title, owner_uid, visibility)
+    VALUES ($1, $2, $3, $4)"
+   (utils:uuid-string) title owner-uid visibility))
 
-(defun handle-get-map-details (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (format *error-output* "Get map details called with ID=~A~%" id)
-     (when (and id (not (string= id "")))
-           (services.mindmaps:get-map-details id)))))
+(defun update-map (id &key title owner-uid visibility)
+  "Update only the given fields of a map."
+  (when (or title owner-uid visibility)
+        (cond
+         ;; すべて指定された場合
+         ((and title owner-uid visibility)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, owner_uid = $3, visibility = $4, updated_at = NOW() WHERE id = $1"
+            id title owner-uid visibility))
+
+         ;; title + owner-uid
+         ((and title owner-uid)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, owner_uid = $3, updated_at = NOW() WHERE id = $1"
+            id title owner-uid))
+
+         ;; title + visibility
+         ((and title visibility)
+           (postmodern:execute
+            "UPDATE maps SET title = $2, visibility = $3, updated_at = NOW() WHERE id = $1"
+            id title visibility))
+
+         ;; owner-uid + visibility
+         ((and owner-uid visibility)
+           (postmodern:execute
+            "UPDATE maps SET owner_uid = $2, visibility = $3, updated_at = NOW() WHERE id = $1"
+            id owner-uid visibility))
+
+         ;; title だけ
+         (title
+           (postmodern:execute
+            "UPDATE maps SET title = $2, updated_at = NOW() WHERE id = $1"
+            id title))
+
+         ;; owner-uid だけ
+         (owner-uid
+           (postmodern:execute
+            "UPDATE maps SET owner_uid = $2, updated_at = NOW() WHERE id = $1"
+            id owner-uid))
+
+         ;; visibility だけ
+         (visibility
+           (postmodern:execute
+            "UPDATE maps SET visibility = $2, updated_at = NOW() WHERE id = $1"
+            id visibility)))))
+
+
+(defun delete-map (id)
+  "Delete a map by its ID."
+  (postmodern:execute
+   "DELETE FROM maps WHERE id = $1"
+   id))

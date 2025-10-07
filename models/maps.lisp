@@ -2,6 +2,7 @@
   (:use :cl :postmodern)
   (:export get-map
            get-all-maps
+           get-map-by-uuid
            get-maps-by-user-uid
            create-map
            update-map
@@ -17,6 +18,14 @@
     WHERE id = $1"
    id :rows :plist))
 
+(defun get-map-by-uuid (uuid)
+  "Fetch a map by its ID."
+  (postmodern:query
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+    FROM maps
+    WHERE uuid = $1"
+   uuid :rows :plist))
+
 (defun get-all-maps ()
   "Fetch all maps."
   (postmodern:query
@@ -27,7 +36,7 @@
 (defun get-maps-by-user-uid (owner-uid)
   "Fetch all maps belonging to a user specified by owner UID."
   (postmodern:query
-   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+   "SELECT id, uuid, title, visibility, created_at, updated_at
     FROM maps
     WHERE owner_uid = $1"
    owner-uid
