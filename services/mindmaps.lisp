@@ -4,13 +4,13 @@
 
 (in-package :services.mindmaps)
 
-(defun get-map-details (map-id)
+(defun get-map-details (map-uuid)
   "指定 map-id の map と関連する情報を plist で返す"
-  (when map-id
-        (let* ((map (models.maps:get-map map-id))
+  (when map-uuid
+        (let* ((map (models.maps:get-map-by-uuid map-uuid))
+               (map-id (getf map :id))
                (nodes (models.nodes:get-nodes-by-map-id map-id))
                (members (models.map-members:get-map-members-by-map-id map-id))
-               ;; --- users を集める ---
                (owner-uid (getf map :owner-uid))
                (node-uids (mapcar (lambda (n) (getf n :user-uid)) nodes))
                (member-uids (mapcar (lambda (m) (getf m :user-uid)) members))
