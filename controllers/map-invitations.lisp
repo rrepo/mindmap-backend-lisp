@@ -48,8 +48,7 @@
      (when (and map-id user-uid)
            (if expires-at
                (models.map-invitations:create-invitation map-id user-uid :expires-at expires-at)
-               (models.map-invitations:create-invitation map-id user-uid))
-           :success))))
+               (models.map-invitations:create-invitation map-id user-uid))))))
 
 (defun handle-delete-map-invitation (env)
   "指定 ID の map_member を削除"
