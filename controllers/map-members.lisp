@@ -45,10 +45,17 @@
 (defun handle-create-map-member (env)
   "map_id と user_uid を指定して map_member を追加"
   (utils:with-invalid
+   (format *error-output* "Creating map member...~%")
    (let* ((params (utils:extract-json-params env))
-          (map-id (getf params :|map-id|))
-          (user-uid (getf params :|uid|)))
-     (when (and map-id user-uid)
+          (token (getf params :|token|))
+          (invitation (models.map-invitations:get-invitation-by-token token))
+          (user-uid (getf params :|uid|))
+          (map-id (getf invitation :map-id))
+          (_ (format *error-output* "Invitation: ~A~%" invitation))
+          (_ (format *error-output* "Map ID: ~A~%" map-id)))
+     (format *error-output* "Params: ~A~%" map-id)
+     (when (and user-uid map-id)
+           (format *error-output* "Creating map member for user ~A and map ~A~%" user-uid map-id)
            (models.map-members:create-map-member map-id user-uid)
            :success))))
 

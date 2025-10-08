@@ -44,9 +44,11 @@
    :rows :plists))
 
 (defun create-map-member (map-id user-uid)
-  "map_membersに新しいレコードを挿入する。"
+  "map_membersに新しいレコードを挿入する。すでに存在する場合は何もしない。"
   (postmodern:execute
-   "INSERT INTO map_members (map_id, user_uid) VALUES ($1, $2)"
+   "INSERT INTO map_members (map_id, user_uid)
+    VALUES ($1, $2)
+    ON CONFLICT (map_id, user_uid) DO NOTHING"
    map-id user-uid))
 
 ; (defun update-map-member (id new-map-id new-user-uid)
