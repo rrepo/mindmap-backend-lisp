@@ -61,8 +61,9 @@
 ;     WHERE id = $3"
 ;    new-map-id new-user-uid id))
 
-(defun delete-map-member (id)
-  "map_membersの指定IDのレコードを削除する。"
+(defun delete-map-member (map-id user-uid)
+  "指定された map_id と user_uid に一致する map_members のレコードを削除する。"
   (postmodern:execute
-   "DELETE FROM map_members WHERE id = $1"
-   id))
+   "DELETE FROM map_members
+    WHERE map_id = $1 AND user_uid = $2"
+   map-id user-uid))

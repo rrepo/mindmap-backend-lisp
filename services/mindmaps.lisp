@@ -21,5 +21,4 @@
           ;; --- まとめて返す ---
           (append map
             (list :nodes nodes
-                  :members members
                   :users users)))))

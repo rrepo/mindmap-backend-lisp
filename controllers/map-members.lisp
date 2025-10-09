@@ -62,9 +62,11 @@
 (defun handle-delete-map-member (env)
   "指定 ID の map_member を削除"
   (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when id
-           (models.map-members:delete-map-member id)
+   (format *error-output* "Deleting map member...~%")
+   (let* ((params (utils:extract-json-params env))
+          (map-id (getf params :|map-id|))
+          (uid (getf params :|uid|)))
+     (when map-id and uid
+           (format *error-output* "Deleting map member for user ~A and map ~A~%" uid map-id)
+           (models.map-members:delete-map-member map-id uid)
            :success))))
