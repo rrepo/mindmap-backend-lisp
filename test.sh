@@ -27,11 +27,15 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-curl -X POST http://localhost:5000/delete-map-member \
-  -H "Content-Type: application/json" \
-  -H "x-service-token: $TOKEN" \
-  -d '{"uid":"toCo2nB5VHVEzlfDy3Gq3am7Wpf2","map-id":"2"}'
+# curl -X POST http://localhost:5000/delete-map-member \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
+#   -d '{"uid":"toCo2nB5VHVEzlfDy3Gq3am7Wpf2","map-id":"2"}'
 
-curl -X POST http://localhost:5000/all-map-members \
+# curl -X POST http://localhost:5000/all-map-members \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
+
+curl -X POST http://localhost:5000/all-users \
   -H "Content-Type: application/json" \
   -H "x-service-token: $TOKEN" \
