@@ -5,7 +5,8 @@
            :get-invitations-by-map-id
            :create-invitation
            :delete-invitation
-           :delete-expired-invitations))
+           :delete-expired-invitations
+           :delete-invitations-by-map-id))
 
 (in-package :models.map-invitations)
 
@@ -65,3 +66,9 @@
   "期限切れの招待を一括削除する。"
   (execute
    "DELETE FROM map_invitations WHERE expires_at < NOW()"))
+
+(defun delete-invitations-by-map-id (map-id)
+  "指定された MAP_ID に紐づくすべての招待を削除する。"
+  (execute
+   "DELETE FROM map_invitations WHERE map_id = $1"
+   map-id))
