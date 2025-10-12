@@ -38,17 +38,20 @@
            (models.map-invitations:get-invitations-by-map-id map-id)))))
 
 (defun handle-create-map-invitation (env)
-  "map_id と user_uid を指定して map_member を追加"
+  "map_id と user_uid を指定して map_member を追加し、生成されたトークンを返す。"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (map-id (getf params :|map-id|))
           (user-uid (getf params :|uid|))
           (expires-at (getf params :|expires-at|)))
-     (format *error-output* "Creating invitation request: map-id=~A, user-uid=~A, expires-at=~A~%" map-id user-uid expires-at)
+     (format *error-output*
+         "Creating invitation request: map-id=~A, user-uid=~A, expires-at=~A~%"
+       map-id user-uid expires-at)
      (when (and map-id user-uid)
-           (if expires-at
-               (models.map-invitations:create-invitation map-id user-uid :expires-at expires-at)
-               (models.map-invitations:create-invitation map-id user-uid))))))
+           (let ((token (if expires-at
+                            (models.map-invitations:create-invitation map-id user-uid :expires-at expires-at)
+                            (models.map-invitations:create-invitation map-id user-uid))))
+             (list :token token))))))
 
 (defun handle-delete-map-invitation (env)
   "指定 ID の map_member を削除"

@@ -1,6 +1,6 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node))
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id))
 
 (in-package :models.nodes)
 
@@ -61,3 +61,10 @@ If PARENT-ID is explicitly NIL and PARENT-ID-SPECIFIED-P is T, set parent_id to 
   (postmodern:execute
    "DELETE FROM nodes WHERE id = $1"
    id))
+
+(defun delete-nodes-by-map-id (map-id)
+  "指定された MAP_ID に紐づくすべての nodes レコードを削除する。"
+  (postmodern:execute
+   "DELETE FROM nodes
+    WHERE map_id = $1"
+   map-id))

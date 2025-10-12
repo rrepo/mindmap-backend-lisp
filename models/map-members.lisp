@@ -5,7 +5,8 @@
            get-map-members-by-map-id
            get-map-members-by-user-uid
            create-map-member
-           delete-map-member))
+           delete-map-member
+           delete-map-members-by-map-id))
 
 (in-package :models.map-members)
 
@@ -67,3 +68,10 @@
    "DELETE FROM map_members
     WHERE map_id = $1 AND user_uid = $2"
    map-id user-uid))
+
+(defun delete-map-members-by-map-id (map-id)
+  "指定された MAP_ID に紐づくすべての map_members レコードを削除する。"
+  (postmodern:execute
+   "DELETE FROM map_members
+    WHERE map_id = $1"
+   map-id))
