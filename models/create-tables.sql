@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS maps (
 
 CREATE TABLE IF NOT EXISTS map_members (
     id SERIAL PRIMARY KEY,
-    map_id INTEGER REFERENCES maps(id),
-    user_uid VARCHAR(64) REFERENCES users(uid),
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+    user_uid VARCHAR(64) REFERENCES users(uid) ON DELETE CASCADE,
     UNIQUE (map_id, user_uid),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS map_members (
 
 CREATE TABLE IF NOT EXISTS nodes (
     id SERIAL PRIMARY KEY,
-    map_id INTEGER REFERENCES maps(id),
-    parent_id INTEGER REFERENCES nodes(id),
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+    parent_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     user_uid VARCHAR(64) REFERENCES users(uid),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE TABLE IF NOT EXISTS map_invitations (
     id SERIAL PRIMARY KEY,
-    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+    map_uuid VARCHAR(255) REFERENCES maps(uuid) ON DELETE CASCADE,
     inviter_uid VARCHAR(64) REFERENCES users(uid),
     token VARCHAR(128) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

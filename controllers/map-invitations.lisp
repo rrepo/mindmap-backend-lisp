@@ -2,7 +2,7 @@
   (:use :cl :postmodern)
   (:export :handle-get-map-invitation
            :handle-get-map-invitation-by-token
-           :handle-get-map-invitation-by-map-id
+           :handle-get-map-invitation-by-map-uuid
            :handle-create-map-invitation
            :handle-delete-map-invitation))
 
@@ -27,30 +27,30 @@
      (when token
            (models.map-invitations:get-invitation-by-token token)))))
 
-(defun handle-get-map-invitation-by-map-id (env)
+(defun handle-get-map-invitation-by-map-uuid (env)
   "ID指定で map_member を取得"
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
-          (map-id (getf params :ID)))
-     (format *error-output* "Fetching invitations for map-id=~A~%" map-id)
-     (when map-id
-           (models.map-invitations:get-invitations-by-map-id map-id)))))
+          (map-uuid (getf params :ID)))
+     (format *error-output* "Fetching invitations for map-id=~A~%" map-uuid)
+     (when map-uuid
+           (models.map-invitations:get-invitations-by-map-uuid map-uuid)))))
 
 (defun handle-create-map-invitation (env)
   "map_id と user_uid を指定して map_member を追加し、生成されたトークンを返す。"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
-          (map-id (getf params :|map-id|))
+          (map-uuid (getf params :|map-uuid|))
           (user-uid (getf params :|uid|))
           (expires-at (getf params :|expires-at|)))
      (format *error-output*
          "Creating invitation request: map-id=~A, user-uid=~A, expires-at=~A~%"
-       map-id user-uid expires-at)
-     (when (and map-id user-uid)
+       map-uuid user-uid expires-at)
+     (when (and map-uuid user-uid)
            (let ((token (if expires-at
-                            (models.map-invitations:create-invitation map-id user-uid :expires-at expires-at)
-                            (models.map-invitations:create-invitation map-id user-uid))))
+                            (models.map-invitations:create-invitation map-uuid user-uid :expires-at expires-at)
+                            (models.map-invitations:create-invitation map-uuid user-uid))))
              (list :token token))))))
 
 (defun handle-delete-map-invitation (env)

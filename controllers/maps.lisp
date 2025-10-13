@@ -70,9 +70,6 @@
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (models.maps:delete-map id)
-           (models.nodes:delete-nodes-by-map-id id)
-           (models.map-members:delete-map-members-by-map-id id)
-           (models.map-invitations:delete-invitations-by-map-id id)
            :success))))
 
 (defun handle-get-map-details (env)
