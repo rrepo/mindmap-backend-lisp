@@ -36,6 +36,6 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-curl -X POST http://localhost:5000/all-users \
+curl -X POST http://localhost:5000/all-map-members \
   -H "Content-Type: application/json" \
   -H "x-service-token: $TOKEN" \

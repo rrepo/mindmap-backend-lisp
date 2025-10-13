@@ -130,8 +130,8 @@
 (defroute-http "/get-map-invitation-by-token"
                (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
 
-(defroute-http "/get-map-invitation-by-map-id"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-id env)))
+(defroute-http "/get-map-invitation-by-map-uuid"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
 
 (defroute-http "/create-map-invitation"
                (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
