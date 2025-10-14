@@ -6,30 +6,30 @@
 
 (defun get-user (uid)
   (postmodern:query
-   "SELECT uid, name, img FROM users WHERE uid = $1"
+   "SELECT uid, name FROM users WHERE uid = $1"
    uid :rows :plist))
 
 (defun get-users (uids)
   (postmodern:query
-   (:select 'uid 'name 'img
+   (:select 'uid 'name
           :from 'users
             :where (:in 'uid (:set uids)))
    :plists))
 
 (defun get-all-users ()
   (postmodern:query
-   "SELECT id, uid, name, img, created_at, updated_at FROM users"
+   "SELECT id, uid, name, created_at, updated_at FROM users"
    :rows :plists))
 
-(defun create-user (uid name &optional (img nil))
+(defun create-user (uid name)
   "Insert a new user into the users table.
    If the UID already exists, do nothing and return :success."
   (handler-case
       (progn
        (postmodern:execute
-        "INSERT INTO users (uid, name, img)
-          VALUES ($1, $2, $3)"
-        uid name img)
+        "INSERT INTO users (uid, name)
+          VALUES ($1, $2)"
+        uid name)
        :success)
     (postmodern:database-error (e)
                                ;; 重複キーエラーなら握りつぶして :success を返す
@@ -44,18 +44,10 @@
                                       :db-error))))))
 
 
-(defun update-user (uid &key name img)
-  (when (or name img)
-        (cond
-         ((and name img)
-           (postmodern:execute "UPDATE users SET name = $2, img = $3, updated_at = NOW() WHERE uid = $1"
-                               uid name img))
-         (name
-           (postmodern:execute "UPDATE users SET name = $2, updated_at = NOW() WHERE uid = $1"
-                               uid name))
-         (img
-           (postmodern:execute "UPDATE users SET img = $2, updated_at = NOW() WHERE uid = $1"
-                               uid img)))))
+(defun update-user (uid &key name)
+  (when name
+        (postmodern:execute "UPDATE users SET name = $2, updated_at = NOW() WHERE uid = $1"
+                            uid name)))
 
 (defun delete-user (uid)
   (postmodern:execute
