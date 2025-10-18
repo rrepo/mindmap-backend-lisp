@@ -51,6 +51,8 @@
            (let ((token (if expires-at
                             (models.map-invitations:create-invitation map-uuid user-uid :expires-at expires-at)
                             (models.map-invitations:create-invitation map-uuid user-uid))))
+
+             (format *error-output* "Created invitation with token=~A~%" token)
              (list :token token))))))
 
 (defun handle-delete-map-invitation (env)
