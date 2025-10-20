@@ -54,13 +54,6 @@
           ;; map-uuid から map を取得
           (map (models.maps:get-map-by-uuid map-uuid))
           (map-id (getf map :|ID|)))
-     (format *error-output* "Token: ~A~%" token)
-     (format *error-output* "User UID: ~A~%" user-uid)
-     (format *error-output* "Invitation: ~A~%" invitation)
-     (format *error-output* "Map UUID: ~A~%" map-uuid)
-     (format *error-output* "Map: ~A~%" map)
-     (format *error-output* "Map ID: ~A~%" map-id)
-
      ;; map_member を作成
      (let ((result (models.map-members:create-map-member map-id user-uid)))
        (format *error-output* "Created map member: ~A~%" result))

@@ -18,8 +18,6 @@
      (when (and id (not (string= id "")))
            (let* ((map (models.maps:get-map id))
                   (nodes (models.nodes:get-nodes-by-map-id id)))
-             (format *error-output* "Map: ~A~%" map)
-             (format *error-output* "nodes: ~A~%" nodes)
              ;; map は plist なので append で nodes を追加
              (append map (list :nodes nodes)))))))
 
@@ -29,7 +27,6 @@
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
-           (format *error-output* "Get maps by uid called with ID=~A~%" id)
            (services.mindmaps:get-all-maps-by-user-uid id)))))
 
 (defun handle-get-all-maps ()
