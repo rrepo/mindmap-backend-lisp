@@ -43,21 +43,28 @@
    (models.map-members:get-all-map-members)))
 
 (defun handle-create-map-member (env)
-  "map_id と user_uid を指定して map_member を追加"
+  "map_id と user_uid を指定して map_member を追加し、map_uuid を返す"
   (utils:with-invalid
-   (format *error-output* "Creating map member...~%")
+   (format *error-output* "Creating map member!!!!!~%")
    (let* ((params (utils:extract-json-params env))
           (token (getf params :|token|))
           (invitation (models.map-invitations:get-invitation-by-token token))
           (user-uid (getf params :|uid|))
-          (map-id (getf invitation :map-id))
-          (_ (format *error-output* "Invitation: ~A~%" invitation))
-          (_ (format *error-output* "Map ID: ~A~%" map-id)))
-     (format *error-output* "Params: ~A~%" map-id)
-     (when (and user-uid map-id)
-           (format *error-output* "Creating map member for user ~A and map ~A~%" user-uid map-id)
-           (models.map-members:create-map-member map-id user-uid)
-           :success))))
+          (map-uuid (getf invitation :|MAP-UUID|))
+          ;; map-uuid から map を取得
+          (map (models.maps:get-map-by-uuid map-uuid))
+          (map-id (getf map :|ID|)))
+     (format *error-output* "Token: ~A~%" token)
+     (format *error-output* "User UID: ~A~%" user-uid)
+     (format *error-output* "Invitation: ~A~%" invitation)
+     (format *error-output* "Map UUID: ~A~%" map-uuid)
+     (format *error-output* "Map: ~A~%" map)
+     (format *error-output* "Map ID: ~A~%" map-id)
+
+     ;; map_member を作成
+     (let ((result (models.map-members:create-map-member map-id user-uid)))
+       (format *error-output* "Created map member: ~A~%" result))
+     map-uuid)))
 
 (defun handle-delete-map-member (env)
   "指定 ID の map_member を削除"
