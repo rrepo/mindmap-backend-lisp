@@ -1,79 +1,79 @@
-(defpackage :controllers.map-members
+(defpackage :controllers.maps
   (:use :cl :jonathan)
-  (:export handle-get-map-member
-           handle-get-map-members-by-map-id
-           handle-get-map-members-by-user-uid
-           handle-get-all-map-members
-           handle-create-map-member
-           handle-delete-map-member))
+  (:export handle-get-all-maps
+           handle-get-map
+           handle-get-maps-by-uid
+           handle-create-map
+           handle-update-map
+           handle-delete-map
+           handle-get-map-details))
 
-(in-package :controllers.map-members)
+(in-package :controllers.maps)
+(defun handle-get-map (env)
+  (utils:with-invalid
+   (format *error-output* "Get map calleddd!!fdfdfd~%")
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (let* ((map (models.maps:get-map id))
+                  (nodes (models.nodes:get-nodes-by-map-id id)))
+             (format *error-output* "Map: ~A~%" map)
+             (format *error-output* "nodes: ~A~%" nodes)
+             ;; map は plist なので append で nodes を追加
+             (append map (list :nodes nodes)))))))
 
-(defun handle-get-map-member (env)
-  "ID指定で map_member を取得"
+(defun handle-get-maps-by-uid (env)
   (utils:with-invalid
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
-     (when id
-           (models.map-members:get-map-member id)))))
+     (when (and id (not (string= id "")))
+           (format *error-output* "Get maps by uid called with ID=~A~%" id)
+           (services.mindmaps:get-all-maps-by-user-uid id)))))
 
-(defun handle-get-map-members-by-map-id (env)
-  "MAP_ID 指定でメンバー一覧を取得"
+(defun handle-get-all-maps ()
   (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (map-id (getf params :ID)))
-     (when map-id
-           (models.map-members:get-map-members-by-map-id map-id)))))
+   (let* ((maps (models.maps:get-all-maps)))
+     maps)))
 
-(defun handle-get-map-members-by-user-uid (env)
-  "USER_UID 指定でメンバー一覧を取得"
+(defun handle-create-map (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
   (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (user-uid (getf params :ID)))
-     (when user-uid
-           (models.map-members:get-map-members-by-user-uid user-uid)))))
-
-(defun handle-get-all-map-members ()
-  "全ての map_member を取得"
-  (format *error-output* "Fetching all map members...~%")
-  (utils:with-invalid
-   (models.map-members:get-all-map-members)))
-
-(defun handle-create-map-member (env)
-  "map_id と user_uid を指定して map_member を追加し、map_uuid を返す"
-  (utils:with-invalid
-   (format *error-output* "Creating map member!!!!!~%")
    (let* ((params (utils:extract-json-params env))
-          (token (getf params :|token|))
-          (invitation (models.map-invitations:get-invitation-by-token token))
-          (user-uid (getf params :|uid|))
-          (map-uuid (getf invitation :|MAP-UUID|))
-          ;; map-uuid から map を取得
-          (map (models.maps:get-map-by-uuid map-uuid))
-          (map-id (getf map :|ID|)))
-     (format *error-output* "Token: ~A~%" token)
-     (format *error-output* "User UID: ~A~%" user-uid)
-     (format *error-output* "Invitation: ~A~%" invitation)
-     (format *error-output* "Map UUID: ~A~%" map-uuid)
-     (format *error-output* "Map: ~A~%" map)
-     (format *error-output* "Map ID: ~A~%" map-id)
-
-     ;; map_member を作成
-     (let ((result (models.map-members:create-map-member map-id user-uid)))
-       (format *error-output* "Created map member: ~A~%" result))
-     map-uuid)))
-
-(defun handle-delete-map-member (env)
-  "指定 ID の map_member を削除"
-  (utils:with-invalid
-   (format *error-output* "Deleting map member...~%")
-   (let* ((params (utils:extract-json-params env))
-          (map-id (getf params :|map-id|))
-          (uid (getf params :|uid|)))
-     (when map-id and uid
-           (format *error-output* "Deleting map member for user ~A and map ~A~%" uid map-id)
-           (models.map-members:delete-map-member map-id uid)
+          (title (getf params :|title|))
+          (uid (getf params :|uid|))
+          (visibility (getf params :|visibility|)))
+     (when (and title uid visibility)
+           (models.maps:create-map title uid visibility)
            :success))))
+
+(defun handle-update-map (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          (uid (getf params :|uid|))
+          (title (getf params :|title|))
+          (visibility (getf params :|visibility|)))
+     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
+     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
+     :success)))
+
+(defun handle-delete-map (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:delete-map id)
+           :success))))
+
+(defun handle-get-map-details (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (format *error-output* "Get map details called with ID=~A~%" id)
+     (when (and id (not (string= id "")))
+           (services.mindmaps:get-map-details id)))))

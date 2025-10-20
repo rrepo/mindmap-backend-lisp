@@ -25,15 +25,12 @@
 
 (defun handle-get-maps-by-uid (env)
   (utils:with-invalid
-   (format *error-output* "Get map calleddd uid !!fdfdfd~%")
    (let* ((qs (getf env :query-string))
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (format *error-output* "Get maps by uid called with ID=~A~%" id)
-           (let* ((map (models.maps:get-maps-by-user-uid id)))
-             (format *error-output* "Map: ~A~%" map)
-             map)))))
+           (services.mindmaps:get-all-maps-by-user-uid id)))))
 
 (defun handle-get-all-maps ()
   (utils:with-invalid
