@@ -27,7 +27,7 @@
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
-           (services.mindmaps:get-all-maps-by-user-uid id)))))
+           (models.maps:get-all-maps-by-user-uid id)))))
 
 (defun handle-get-all-maps ()
   (utils:with-invalid

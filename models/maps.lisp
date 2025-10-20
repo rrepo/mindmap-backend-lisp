@@ -4,6 +4,7 @@
            get-maps-by-ids
            get-all-maps
            get-map-by-uuid
+           get-all-maps-by-user-uid
            get-maps-by-user-uid
            create-map
            update-map
@@ -35,6 +36,17 @@
     FROM maps
     WHERE uuid = $1"
    uuid :rows :plist))
+
+(defun get-all-maps-by-user-uid (user-uid)
+  "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得（最適化版）"
+  (postmodern:query
+   "SELECT DISTINCT m.id, m.uuid, m.title, m.owner_uid, m.visibility, m.created_at, m.updated_at
+    FROM maps m
+    LEFT JOIN map_members mm ON m.id = mm.map_id
+    WHERE m.owner_uid = $1 OR mm.user_uid = $1
+    ORDER BY m.created_at DESC"
+   user-uid
+   :plists))
 
 (defun get-all-maps ()
   "Fetch all maps."
