@@ -1,6 +1,6 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-details))
+  (:export get-map-details get-all-maps-by-user-uid))
 
 (in-package :services.mindmaps)
 
@@ -22,3 +22,16 @@
           (append map
             (list :nodes nodes
                   :users users)))))
+
+(defun get-all-maps-by-user-uid (user-uid)
+  "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得"
+  (let* ((owner-maps (models.maps:get-maps-by-user-uid user-uid))
+         (members (models.map-members:get-map-members-by-user-uid user-uid))
+         (member-map-ids (mapcar (lambda (m) (getf m :|MAP-ID|)) members))
+         (member-maps (loop for map-id in member-map-ids
+                            collect (models.maps:get-map map-id)))
+         (all-maps (remove-duplicates
+                       (append owner-maps member-maps)
+                     :test #'equal
+                     :key (lambda (m) (getf m :|ID|)))))
+    all-maps))
