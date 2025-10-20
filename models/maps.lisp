@@ -1,6 +1,7 @@
 (defpackage :models.maps
   (:use :cl :postmodern)
   (:export get-map
+           get-maps-by-ids
            get-all-maps
            get-map-by-uuid
            get-maps-by-user-uid
@@ -17,6 +18,15 @@
     FROM maps
     WHERE id = $1"
    id :rows :plist))
+
+(defun get-maps-by-ids (map-ids)
+  "複数のIDでマップを一括取得"
+  (postmodern:query
+   (format nil "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+                  FROM maps
+                  WHERE id = ANY($1)")
+   (coerce map-ids 'vector) ; PostgreSQLの配列として渡す
+   :plists))
 
 (defun get-map-by-uuid (uuid)
   "Fetch a map by its ID."
@@ -36,7 +46,7 @@
 (defun get-maps-by-user-uid (owner-uid)
   "Fetch all maps belonging to a user specified by owner UID."
   (postmodern:query
-   "SELECT id, uuid, title, visibility, created_at, updated_at
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
     FROM maps
     WHERE owner_uid = $1"
    owner-uid

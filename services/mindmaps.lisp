@@ -27,9 +27,12 @@
   "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得"
   (let* ((owner-maps (models.maps:get-maps-by-user-uid user-uid))
          (members (models.map-members:get-map-members-by-user-uid user-uid))
+         (_ (format *error-output* "Members: ~A~%" members))
          (member-map-ids (mapcar (lambda (m) (getf m :|MAP-ID|)) members))
-         (member-maps (loop for map-id in member-map-ids
-                            collect (models.maps:get-map map-id)))
+         ;; 一括取得に変更
+         (member-maps (if member-map-ids
+                          (models.maps:get-maps-by-ids member-map-ids)
+                          nil))
          (all-maps (remove-duplicates
                        (append owner-maps member-maps)
                      :test #'equal
