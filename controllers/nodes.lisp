@@ -36,9 +36,11 @@
          "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
        id has-parent-id parent-id content)
      (when id
-           (models.nodes:update-node id
-                                     :parent-id (when has-parent-id parent-id)
-                                     :content content)
+           (models.nodes:update-node
+            id
+            :content content
+            :parent-id parent-id
+            :parent-id-specified-p has-parent-id)
            :success))))
 
 
