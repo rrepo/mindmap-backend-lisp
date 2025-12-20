@@ -32,29 +32,28 @@
      user-uid)))
 
 (defun update-node (id &key content parent-id parent-id-specified-p)
-  "Update only the given fields of a node.
-If PARENT-ID is explicitly NIL and PARENT-ID-SPECIFIED-P is T, set parent_id to NULL."
-  (let ((sets '())
-        (params '()))
-    ;; content が指定されていれば更新対象に追加
-    (when content
-          (push "content = $~a" sets)
-          (push content params))
-    ;; parent-id が指定されていれば更新対象に追加
-    (when parent-id-specified-p
-          (push "parent_id = $~a" sets)
-          (push parent-id params)) ;; NIL が来ればそのまま NULL にマッピングされる
+  (cond
+   ;; content + parent-id 両方更新
+   ((and content parent-id-specified-p)
+     (postmodern:execute
+      "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3"
+      content parent-id id))
 
-    ;; 実際のクエリを組み立てて実行
-    (when sets
-          (postmodern:execute
-           (format nil
-               "UPDATE nodes SET ~{~a~^, ~} WHERE id = $~a"
-             (loop for i from 1
-                   for set in (reverse sets)
-                   collect (format nil set i))
-             (+ (length params) 1))
-           (append (reverse params) (list id))))))
+   ;; content のみ更新
+   (content
+     (postmodern:execute
+      "UPDATE nodes SET content = $1 WHERE id = $2"
+      content id))
+
+   ;; parent-id のみ更新（NULL 含む）
+   (parent-id-specified-p
+     (postmodern:execute
+      "UPDATE nodes SET parent_id = $1 WHERE id = $2"
+      parent-id id))
+
+   ;; 何も更新しない
+   (t
+     nil)))
 
 
 (defun delete-node (id)
