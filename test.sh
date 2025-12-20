@@ -4,6 +4,16 @@
 TOKEN=$(grep BACKEND_TOKEN_SECRET .env | cut -d '=' -f2-)
 echo "Using token!!!!!!!: $TOKEN"
 
+# curl -X POST http://localhost:5000/create-node \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
+#   -d '{
+#     "map-id": 4,
+#     "parent-id": null,
+#     "uid": "OtUU0vC1QJSUXUSDJjVV3Zu4v1E3",
+#     "content": "manual test node"
+#   }'
+
 # API にアクセス
 # curl -X POST http://localhost:5000/create-map-invitation \
 #   -H "Content-Type: application/json" \
@@ -23,9 +33,7 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "x-service-token: $TOKEN" \
 #   -d '{"uid":"OtUU0vC1QJSUXUSDJjVV3Zu4v1E3","token":"gAMlfx621JJJFGxQyFBa2Ut9qO4tS16mMds19IQqW2Q."}'
 
-# curl -X POST http://localhost:5000/all-map-members \
-#   -H "Content-Type: application/json" \
-#   -H "x-service-token: $TOKEN" \
+curl -X POST http://localhost:5000/all-nodes \  -H "Content-Type: application/json" \  -H "x-service-token: $TOKEN" \
 
 # curl -X POST http://localhost:5000/delete-map-member \
 #   -H "Content-Type: application/json" \
@@ -40,6 +48,6 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-curl -X POST http://localhost:5000/get-map-members-by-map-id?=2 \
-  -H "Content-Type: application/json" \
-  -H "x-service-token: $TOKEN" \
+# curl -X POST http://localhost:5000/get-map-members-by-map-id?=2 \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
