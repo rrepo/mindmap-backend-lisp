@@ -17,9 +17,11 @@
           (parent-id (getf params :|parent-id|))
           (uid (getf params :|uid|))
           (content (getf params :|content|)))
+     (format *error-output*
+         "Create params: map-id=~A, parent-id=~A, uid=~A, content=~A~%"
+       map-id parent-id uid content)
      (when (and map-id content uid)
-           (models.nodes:create-node map-id parent-id content uid)
-           :success))))
+           (models.nodes:create-node map-id parent-id content uid)))))
 
 (defun handle-update-node (env)
   (utils:with-invalid

@@ -20,15 +20,16 @@
    map-id :rows :plists))
 
 (defun create-node (map-id parent-id content user-uid)
-  "Insert a new node into the nodes table.
-If parent-id is NIL, insert NULL instead."
-  (postmodern:execute
-   "INSERT INTO nodes (map_id, parent_id, content, user_uid)
-    VALUES ($1, $2, $3, $4)"
-   map-id
-   (if parent-id parent-id :null)
-   content
-   user-uid))
+  "Insert a new node into the nodes table and return its id."
+  (caar
+    (postmodern:query
+     "INSERT INTO nodes (map_id, parent_id, content, user_uid)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id"
+     map-id
+     (if parent-id parent-id :null)
+     content
+     user-uid)))
 
 (defun update-node (id &key content parent-id parent-id-specified-p)
   "Update only the given fields of a node.
