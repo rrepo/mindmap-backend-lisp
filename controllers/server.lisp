@@ -106,6 +106,9 @@
 (defroute-http "/delete-node"
                (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
 
+(defroute-http "/delete-node-descendants"
+               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
+
 (defroute-http "/get-map-member"
                (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
 
