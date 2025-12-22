@@ -1,6 +1,6 @@
 (defpackage :controllers.nodes
   (:use :cl :jonathan)
-  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node))
+  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants))
 
 (in-package :controllers.nodes)
 
@@ -51,3 +51,15 @@
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (models.nodes:delete-node id)))))
+
+(defun handle-delete-node-descendants (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID))
+          (map-id (getf params :MAP-ID)))
+     (format *error-output*
+         "Delete node descendants params: id=~A, map-id=~A~%"
+       id map-id)
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node-with-descendants id map-id)))))

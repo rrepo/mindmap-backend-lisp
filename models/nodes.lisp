@@ -1,6 +1,6 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id))
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants))
 
 (in-package :models.nodes)
 
@@ -68,3 +68,23 @@
    "DELETE FROM nodes
     WHERE map_id = $1"
    map-id))
+
+(defun delete-node-with-descendants (node-id map-id)
+  (postmodern:execute
+   "
+WITH RECURSIVE descendants AS (
+    SELECT id
+    FROM nodes
+    WHERE id = $1 AND map_id = $2
+
+    UNION ALL
+
+    SELECT n.id
+    FROM nodes n
+    INNER JOIN descendants d
+      ON n.parent_id = d.id
+)
+DELETE FROM nodes
+WHERE id IN (SELECT id FROM descendants)
+"
+   node-id map-id))
