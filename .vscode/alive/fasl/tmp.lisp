@@ -1,65 +1,178 @@
-(defpackage :controllers.nodes
-  (:use :cl :jonathan)
-  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants))
+(defpackage :websocket-app
+  (:use :cl :clack :websocket-driver :cl-dotenv)
+  (:export :start-app :*my-app* :stop-app))
 
-(in-package :controllers.nodes)
+(in-package :websocket-app)
 
-(defun handle-get-all-nodes ()
-  (utils:with-invalid
-   (let* ((nodes (models.nodes:get-all-nodes)))
-     (format *error-output* "All nodes: ~A~%" nodes)
-     nodes)))
+(defmacro defroute-http (path &body body)
+  `(setf (gethash ,path *http-routes*)
+     (lambda (env) ,@body)))
 
-(defun handle-create-node (env)
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (map-id (getf params :|map-id|))
-          (parent-id (getf params :|parent-id|))
-          (uid (getf params :|uid|))
-          (content (getf params :|content|)))
-     (format *error-output*
-         "Create params: map-id=~A, parent-id=~A, uid=~A, content=~A~%"
-       map-id parent-id uid content)
-     (when (and map-id content uid)
-           (models.nodes:create-node map-id parent-id content uid)))))
+(defmacro defroute-ws (path &body body)
+  `(setf (gethash ,path *ws-routes*)
+     (lambda (env)
+       (let ((ws (make-server env)))
+         ,@body
+         (lambda (responder)
+           (declare (ignore responder))
+           (start-connection ws))))))
 
-(defun handle-update-node (env)
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (id (getf params :|id|))
-          ;; parent-id がクエリに含まれているかどうかを判定
-          (has-parent-id (not (null (member :|parent-id| params))))
-          (parent-id (when has-parent-id
-                           (getf params :|parent-id|)))
-          (content (getf params :|content|)))
-     (format *error-output*
-         "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
-       id has-parent-id parent-id content)
-     (when id
-           (models.nodes:update-node
-            id
-            :content content
-            :parent-id parent-id
-            :parent-id-specified-p has-parent-id)
-           :success))))
+(defvar *http-routes* (make-hash-table :test #'equal))
+(defvar *ws-routes* (make-hash-table :test #'equal))
+
+(defvar *my-app*
+        ; (with-cors
+        (lambda (env)
+          (let* ((path (getf env :path-info))
+                 (method (getf env :request-method)))
+            (cond
+             ;; OPTIONSリクエスト (CORS preflight)
+             ((string= method "OPTIONS")
+               (list 200
+                     '(:content-type "text/plain")
+                     '("OK")))
+
+             ;; トークン認証（有効）
+             ((not (server-utils:validate-service-token env))
+               (list 401
+                     '(:content-type "text/plain")
+                     '("Unauthorized")))
+
+             ;; HTTPルート
+             ((gethash path *http-routes*)
+               (funcall (gethash path *http-routes*) env))
+
+             ;; WSルート
+             ((gethash path *ws-routes*)
+               (funcall (gethash path *ws-routes*) env))
+
+             ;; Not Found
+             (t
+               (list 404
+                     '(:content-type "text/plain")
+                     '("Not Found")))))))
+
+(defroute-http "/"
+               '(200 (:content-type "text/plain") ("Hello from /5t")))
+
+(defroute-http "/login"
+               (server-utils:with-api-response (controllers.users:handle-login env)))
+
+(defroute-http "/user"
+               (server-utils:with-api-response (controllers.users:handle-get-user env)))
+
+(defroute-http "/users"
+               (server-utils:with-api-response (controllers.users:handle-get-users env)))
+
+(defroute-http "/all-users"
+               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
+
+(defroute-http "/create-user"
+               (server-utils:with-api-response (controllers.users:handle-create-user env)))
+
+(defroute-http "/update-user"
+               (server-utils:with-api-response (controllers.users:handle-update-user env)))
+
+(defroute-http "/delete-user"
+               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
+
+(defroute-http "/get-map"
+               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
+
+(defroute-http "/all-maps"
+               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
+
+(defroute-http "/get-maps-by-uid"
+               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
+
+(defroute-http "/create-map"
+               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
+
+(defroute-http "/update-map"
+               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
+
+(defroute-http "/delete-map"
+               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
+
+(defroute-http "/count-private-maps"
+               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
+
+(defroute-http "/all-nodes"
+               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
+
+(defroute-http "/create-node"
+               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
+
+(defroute-http "/update-node"
+               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
+
+(defroute-http "/delete-node"
+               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
+
+(defroute-http "/delete-node-descendants"
+               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
+
+(defroute-http "/get-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
+
+(defroute-http "/get-map-members-by-map-id"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
+
+(defroute-http "/get-map-members-by-user-uid"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
+
+(defroute-http "/all-map-members"
+               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
+
+(defroute-http "/create-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
+
+(defroute-http "/delete-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
+
+(defroute-http "/get-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
+
+(defroute-http "/get-map-invitation-by-token"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
+
+(defroute-http "/get-map-invitation-by-map-uuid"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
+
+(defroute-http "/create-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
+
+(defroute-http "/delete-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
+
+(defroute-http "/get-map-details"
+               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
+
+(defroute-ws "/websocket"
+             (on :message ws
+                 (lambda (msg)
+                   (format t "~&[WS] Received: ~A~%" msg)
+                   (send ws (concatenate 'string "Echo: " msg)))))
 
 
-(defun handle-delete-node (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.nodes:delete-node id)))))
+(defvar *current-server* nil
+        "現在起動中の Mindmap サーバーを保持。")
 
-(defun handle-delete-node-descendants (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID))
-          (map-id (getf params :MAP-ID)))
-     (format *error-output*
-         "Delete node descendants params: id=~A, map-id=~A~%"
-       id map-id)
-     (when (and id (not (string= id "")))
-           (models.nodes:delete-node-with-descendants id map-id)))))
+(defun start-app (&key (port 5000))
+  "サーバーを起動してサーバーオブジェクトを返す。"
+  ;; すでにサーバーがあれば停止してから起動
+  (when *current-server*
+        (stop-app))
+  (format t "Starting Mindmap server on port ~a...~%" port)
+  ;; Clack のサーバーを起動してオブジェクトを保存
+  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
+  *current-server*)
+
+(defun stop-app ()
+  "現在のサーバーを停止する。"
+  (when *current-server*
+        (format t "Stopping Mindmap server...~%")
+        (ignore-errors
+          ;; Clack/Woo 停止関数
+          (clack:stop *current-server*))
+        (setf *current-server* nil)))
