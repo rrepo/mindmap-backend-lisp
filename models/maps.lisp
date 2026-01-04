@@ -8,7 +8,8 @@
            get-maps-by-user-uid
            create-map
            update-map
-           delete-map))
+           delete-map
+           count-private-maps-by-user-uid))
 
 (in-package :models.maps)
 
@@ -123,3 +124,13 @@
   (postmodern:execute
    "DELETE FROM maps WHERE id = $1"
    id))
+
+(defun count-private-maps-by-user-uid (user-uid)
+  "指定したユーザーが所有する private マップの数を返す"
+  (postmodern:query
+   "SELECT COUNT(*) AS count
+    FROM maps
+    WHERE owner_uid = $1
+      AND visibility = 'private'"
+   user-uid
+   :single))

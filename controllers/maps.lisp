@@ -6,7 +6,8 @@
            handle-create-map
            handle-update-map
            handle-delete-map
-           handle-get-map-details))
+           handle-get-map-details
+           handle-count-private-maps))
 
 (in-package :controllers.maps)
 (defun handle-get-map (env)
@@ -74,3 +75,12 @@
      (format *error-output* "Get map details called with ID=~A~%" id)
      (when (and id (not (string= id "")))
            (services.mindmaps:get-map-details id)))))
+
+
+(defun handle-count-private-maps (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:count-private-maps-by-user-uid id)))))

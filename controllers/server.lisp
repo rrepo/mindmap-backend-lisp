@@ -94,6 +94,9 @@
 (defroute-http "/delete-map"
                (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
 
+(defroute-http "/count-private-maps"
+               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
+
 (defroute-http "/all-nodes"
                (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
 
