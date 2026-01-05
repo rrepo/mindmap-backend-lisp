@@ -9,7 +9,8 @@
            create-map
            update-map
            delete-map
-           count-private-maps-by-user-uid))
+           count-private-maps-by-user-uid
+           search-public-maps-by-title))
 
 (in-package :models.maps)
 
@@ -134,3 +135,19 @@
       AND visibility = 'private'"
    user-uid
    :single))
+
+(defun search-public-maps-by-title (keyword &key (limit 20) (offset 0))
+  "public なマップの中から、タイトルが keyword に部分一致するものを検索する"
+  (postmodern:query
+   "
+   SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+   FROM maps
+   WHERE visibility = 'public'
+     AND title ILIKE '%' || $1 || '%'
+   ORDER BY updated_at DESC
+   LIMIT $2 OFFSET $3
+   "
+   keyword
+   limit
+   offset
+   :plists))

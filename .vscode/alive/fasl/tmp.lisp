@@ -1,178 +1,96 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver :cl-dotenv)
-  (:export :start-app :*my-app* :stop-app))
+(defpackage :controllers.maps
+  (:use :cl :jonathan)
+  (:export handle-get-all-maps
+           handle-get-map
+           handle-get-maps-by-uid
+           handle-create-map
+           handle-update-map
+           handle-delete-map
+           handle-get-map-details
+           handle-count-private-maps
+           handle-get-public-maps-by-search))
 
-(in-package :websocket-app)
+(in-package :controllers.maps)
+(defun handle-get-map (env)
+  (utils:with-invalid
+   (format *error-output* "Get map calleddd!!fdfdfd~%")
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (let* ((map (models.maps:get-map id))
+                  (nodes (models.nodes:get-nodes-by-map-id id)))
+             ;; map は plist なので append で nodes を追加
+             (append map (list :nodes nodes)))))))
 
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
+(defun handle-get-maps-by-uid (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:get-all-maps-by-user-uid id)))))
 
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
-         ,@body
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
+(defun handle-get-all-maps ()
+  (utils:with-invalid
+   (let* ((maps (models.maps:get-all-maps)))
+     maps)))
 
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
+(defun handle-create-map (env)
+  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (title (getf params :|title|))
+          (uid (getf params :|uid|))
+          (visibility (getf params :|visibility|)))
+     (when (and title uid visibility)
+           (models.maps:create-map title uid visibility)
+           :success))))
 
-(defvar *my-app*
-        ; (with-cors
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (method (getf env :request-method)))
-            (cond
-             ;; OPTIONSリクエスト (CORS preflight)
-             ((string= method "OPTIONS")
-               (list 200
-                     '(:content-type "text/plain")
-                     '("OK")))
+(defun handle-update-map (env)
+  (utils:with-invalid
+   (format *error-output* "Update user called~%")
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          (uid (getf params :|uid|))
+          (title (getf params :|title|))
+          (visibility (getf params :|visibility|)))
+     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
+     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
+     :success)))
 
-             ;; トークン認証（有効）
-             ((not (server-utils:validate-service-token env))
-               (list 401
-                     '(:content-type "text/plain")
-                     '("Unauthorized")))
+(defun handle-delete-map (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:delete-map id)
+           :success))))
 
-             ;; HTTPルート
-             ((gethash path *http-routes*)
-               (funcall (gethash path *http-routes*) env))
-
-             ;; WSルート
-             ((gethash path *ws-routes*)
-               (funcall (gethash path *ws-routes*) env))
-
-             ;; Not Found
-             (t
-               (list 404
-                     '(:content-type "text/plain")
-                     '("Not Found")))))))
-
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /5t")))
-
-(defroute-http "/login"
-               (server-utils:with-api-response (controllers.users:handle-login env)))
-
-(defroute-http "/user"
-               (server-utils:with-api-response (controllers.users:handle-get-user env)))
-
-(defroute-http "/users"
-               (server-utils:with-api-response (controllers.users:handle-get-users env)))
-
-(defroute-http "/all-users"
-               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
-
-(defroute-http "/create-user"
-               (server-utils:with-api-response (controllers.users:handle-create-user env)))
-
-(defroute-http "/update-user"
-               (server-utils:with-api-response (controllers.users:handle-update-user env)))
-
-(defroute-http "/delete-user"
-               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
-
-(defroute-http "/get-map"
-               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
-
-(defroute-http "/all-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
-
-(defroute-http "/get-maps-by-uid"
-               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
-
-(defroute-http "/create-map"
-               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
-
-(defroute-http "/update-map"
-               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
-
-(defroute-http "/delete-map"
-               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
-
-(defroute-http "/count-private-maps"
-               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
-
-(defroute-http "/all-nodes"
-               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
-
-(defroute-http "/create-node"
-               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
-
-(defroute-http "/update-node"
-               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
-
-(defroute-http "/delete-node"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
-
-(defroute-http "/delete-node-descendants"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
-
-(defroute-http "/get-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
-
-(defroute-http "/get-map-members-by-map-id"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
-
-(defroute-http "/get-map-members-by-user-uid"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
-
-(defroute-http "/all-map-members"
-               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
-
-(defroute-http "/create-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
-
-(defroute-http "/delete-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
-
-(defroute-http "/get-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
-
-(defroute-http "/get-map-invitation-by-token"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
-
-(defroute-http "/get-map-invitation-by-map-uuid"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
-
-(defroute-http "/create-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
-
-(defroute-http "/delete-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
-
-(defroute-http "/get-map-details"
-               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
+(defun handle-get-map-details (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (format *error-output* "Get map details called with ID=~A~%" id)
+     (when (and id (not (string= id "")))
+           (services.mindmaps:get-map-details id)))))
 
 
-(defvar *current-server* nil
-        "現在起動中の Mindmap サーバーを保持。")
+(defun handle-count-private-maps (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:count-private-maps-by-user-uid id)))))
 
-(defun start-app (&key (port 5000))
-  "サーバーを起動してサーバーオブジェクトを返す。"
-  ;; すでにサーバーがあれば停止してから起動
-  (when *current-server*
-        (stop-app))
-  (format t "Starting Mindmap server on port ~a...~%" port)
-  ;; Clack のサーバーを起動してオブジェクトを保存
-  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
-  *current-server*)
 
-(defun stop-app ()
-  "現在のサーバーを停止する。"
-  (when *current-server*
-        (format t "Stopping Mindmap server...~%")
-        (ignore-errors
-          ;; Clack/Woo 停止関数
-          (clack:stop *current-server*))
-        (setf *current-server* nil)))
+(defun handle-get-public-maps-by-search (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (search (getf params :search)))
+     (when (and search (not (string= search "")))
+           (models.maps:search-public-maps-by-title search)))))
