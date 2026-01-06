@@ -8,7 +8,8 @@
            handle-delete-map
            handle-get-map-details
            handle-count-private-maps
-           handle-get-public-maps-by-search))
+           handle-get-public-maps-by-search
+           handle-get-public-maps))
 
 (in-package :controllers.maps)
 (defun handle-get-map (env)
@@ -94,3 +95,12 @@
           (search (getf params :search)))
      (when (and search (not (string= search "")))
            (models.maps:search-public-maps-by-title search)))))
+
+
+(defun handle-get-public-maps (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (page (getf params :page)))
+     (services.mindmaps:get-public-maps-with-nodes
+      :page page))))
