@@ -37,15 +37,15 @@
      maps)))
 
 (defun handle-create-map (env)
-  "env からリクエストボディを取り出してユーザー作成。常に :success または :invalid を返す"
+  "env からリクエストボディを取り出してマップ作成。uuid を返す"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (title (getf params :|title|))
           (uid (getf params :|uid|))
           (visibility (getf params :|visibility|)))
      (when (and title uid visibility)
-           (models.maps:create-map title uid visibility)
-           :success))))
+           (let ((uuid (models.maps:create-map title uid visibility)))
+             uuid)))))
 
 (defun handle-update-map (env)
   (utils:with-invalid

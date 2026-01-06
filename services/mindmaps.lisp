@@ -1,6 +1,6 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-details ))
+  (:export get-map-details get-latest-public-maps-with-nodes))
 
 (in-package :services.mindmaps)
 
@@ -22,6 +22,16 @@
           (append map
             (list :nodes nodes
                   :users users)))))
+
+(defun get-latest-public-maps-with-nodes ()
+  "Fetch latest 30 public maps with up to 10 nodes each."
+  (mapcar
+      (lambda (map)
+        (let ((map-id (getf map :id)))
+          (append
+            map
+            (list :nodes (get-nodes-by-map map-id)))))
+      (get-latest-public-maps)))
 
 ; (defun get-all-maps-by-user-uid (user-uid)
 ;   "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得"
