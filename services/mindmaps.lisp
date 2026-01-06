@@ -1,6 +1,6 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-details get-latest-public-maps-with-nodes))
+  (:export get-map-details get-public-maps-with-nodes))
 
 (in-package :services.mindmaps)
 
@@ -23,15 +23,31 @@
             (list :nodes nodes
                   :users users)))))
 
-(defun get-latest-public-maps-with-nodes ()
-  "Fetch latest 30 public maps with up to 10 nodes each."
-  (mapcar
-      (lambda (map)
-        (let ((map-id (getf map :id)))
-          (append
-            map
-            (list :nodes (get-nodes-by-map map-id)))))
-      (get-latest-public-maps)))
+(defun ensure-number (value &optional (default 1))
+  (or (ignore-errors
+        (etypecase value
+          (number value)
+          (string (parse-integer value))))
+      default))
+
+(defun page->offset-zero-based (page &optional (limit 30))
+  "page=1 -> offset 0, page=2 -> offset limit"
+  (let ((page-num (ensure-number page 1)))
+    (* (max 0 (1- page-num)) limit)))
+
+(defun get-public-maps-with-nodes (&key (page 1) (limit 30))
+  "Fetch public maps with up to 10 nodes each."
+  (let ((offset (page->offset-zero-based page limit)))
+    (mapcar
+        (lambda (map)
+          (let ((map-id (getf map :id)))
+            (list*
+                :nodes (models.nodes:get-nodes-by-map map-id)
+              map)))
+        (models.maps:get-latest-public-maps
+         :limit limit
+         :offset offset))))
+
 
 ; (defun get-all-maps-by-user-uid (user-uid)
 ;   "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得"

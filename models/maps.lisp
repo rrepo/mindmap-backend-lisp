@@ -155,12 +155,13 @@
    offset
    :plists))
 
-(defun get-latest-public-maps ()
-  "Fetch latest 30 public maps."
+(defun get-latest-public-maps (&key (limit 30) (offset 0))
+  "Fetch public maps with limit & offset."
   (postmodern:query
    "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
     FROM maps
     WHERE visibility = 'public'
     ORDER BY created_at DESC
-    LIMIT 30"
-   :rows :plist))
+    LIMIT $1 OFFSET $2"
+   limit offset
+   :rows :plists))
