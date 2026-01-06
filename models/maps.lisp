@@ -10,7 +10,8 @@
            update-map
            delete-map
            count-private-maps-by-user-uid
-           search-public-maps-by-title))
+           search-public-maps-by-title
+           get-latest-public-maps))
 
 (in-package :models.maps)
 
@@ -67,11 +68,14 @@
    :rows :plists))
 
 (defun create-map (title owner-uid &optional (visibility "private"))
-  "Insert a new map."
-  (postmodern:execute
-   "INSERT INTO maps (uuid, title, owner_uid, visibility)
-    VALUES ($1, $2, $3, $4)"
-   (utils:uuid-string) title owner-uid visibility))
+  "Insert a new map and return its uuid."
+  (let ((uuid (utils:uuid-string)))
+    (postmodern:query
+     "INSERT INTO maps (uuid, title, owner_uid, visibility)
+      VALUES ($1, $2, $3, $4)
+      RETURNING uuid"
+     uuid title owner-uid visibility
+     :single)))
 
 (defun update-map (id &key title owner-uid visibility)
   "Update only the given fields of a map."
@@ -119,7 +123,6 @@
             "UPDATE maps SET visibility = $2, updated_at = NOW() WHERE id = $1"
             id visibility)))))
 
-
 (defun delete-map (id)
   "Delete a map by its ID."
   (postmodern:execute
@@ -151,3 +154,13 @@
    limit
    offset
    :plists))
+
+(defun get-latest-public-maps ()
+  "Fetch latest 30 public maps."
+  (postmodern:query
+   "SELECT id, uuid, title, owner_uid, visibility, created_at, updated_at
+    FROM maps
+    WHERE visibility = 'public'
+    ORDER BY created_at DESC
+    LIMIT 30"
+   :rows :plist))

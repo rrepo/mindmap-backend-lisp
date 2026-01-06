@@ -100,6 +100,9 @@
 (defroute-http "/search-public-maps"
                (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
 
+(defroute-http "/get-latest-public-maps"
+               (server-utils:with-api-response (services.mindmaps:get-latest-public-maps-with-nodes env)))
+
 (defroute-http "/all-nodes"
                (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
 

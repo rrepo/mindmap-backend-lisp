@@ -1,6 +1,6 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants))
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map))
 
 (in-package :models.nodes)
 
@@ -88,3 +88,13 @@ DELETE FROM nodes
 WHERE id IN (SELECT id FROM descendants)
 "
    node-id map-id))
+
+(defun get-nodes-by-map (map-id)
+  "Fetch up to 10 nodes for a map."
+  (postmodern:query
+   "SELECT id, parent_id, content, user_uid, created_at, updated_at
+    FROM nodes
+    WHERE map_id = $1
+    ORDER BY created_at DESC
+    LIMIT 10"
+   map-id :rows :plist))
