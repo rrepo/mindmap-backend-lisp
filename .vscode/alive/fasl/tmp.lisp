@@ -24,14 +24,6 @@
              ;; map は plist なので append で nodes を追加
              (append map (list :nodes nodes)))))))
 
-(defun handle-get-maps-by-uid (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:get-all-maps-by-user-uid id)))))
-
 (defun handle-get-all-maps ()
   (utils:with-invalid
    (let* ((maps (models.maps:get-all-maps)))
@@ -104,3 +96,11 @@
           (page (getf params :page)))
      (services.mindmaps:get-public-maps-with-nodes
       :page page))))
+
+(defun handle-get-maps-by-uid (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.maps:get-maps-by-user-uid-with-nodes id)))))
