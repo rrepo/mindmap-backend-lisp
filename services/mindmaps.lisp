@@ -36,17 +36,11 @@
     (* (max 0 (1- page-num)) limit)))
 
 (defun get-public-maps-with-nodes (&key (page 1) (limit 30))
-  "Fetch public maps with up to 10 nodes each."
+  "Fetch public maps with up to 10 nodes each (optimized, single query)."
   (let ((offset (page->offset-zero-based page limit)))
-    (mapcar
-        (lambda (map)
-          (let ((map-id (getf map :id)))
-            (list*
-                :nodes (models.nodes:get-nodes-by-map map-id)
-              map)))
-        (models.maps:get-latest-public-maps
-         :limit limit
-         :offset offset))))
+    (models.maps:get-public-maps-with-nodes
+     :limit limit
+     :offset offset)))
 
 
 ; (defun get-all-maps-by-user-uid (user-uid)
