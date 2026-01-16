@@ -35,12 +35,15 @@
   (let ((page-num (ensure-number page 1)))
     (* (max 0 (1- page-num)) limit)))
 
-(defun get-public-maps-with-nodes (&key (page 1) (limit 30))
-  "Fetch public maps with up to 10 nodes each (optimized, single query)."
-  (let ((offset (page->offset-zero-based page limit)))
-    (models.maps:get-public-maps-with-nodes
-     :limit limit
-     :offset offset)))
+(defun handle-get-public-maps-with-nodes (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (page (or (getf params :page) 1))
+          (limit (or (getf params :limit) 30)))
+     (models.maps:get-public-maps-with-nodes
+      :page page
+      :limit limit))))
 
 
 ; (defun get-all-maps-by-user-uid (user-uid)

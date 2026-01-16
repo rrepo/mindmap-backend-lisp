@@ -13,27 +13,27 @@ echo "Using token!!!!!!!: $TOKEN"
 #       "visibility": "public"
 # }'
 
-API_URL="http://localhost:5000/create-map"
+# API_URL="http://localhost:5000/create-map"
 
-if [ -z "$TOKEN" ]; then
-    echo "ERROR: TOKEN environment variable is not set"
-    exit 1
-fi
+# if [ -z "$TOKEN" ]; then
+#     echo "ERROR: TOKEN environment variable is not set"
+#     exit 1
+# fi
 
-for i in $(seq 1 30); do
-    echo "Creating map $i..."
+# for i in $(seq 1 30); do
+#     echo "Creating map $i..."
     
-    curl -s -X POST "$API_URL" \
-    -H "Content-Type: application/json" \
-    -H "x-service-token: $TOKEN" \
-    -d '{
-          "uid": "OtUU0vC1QJSUXUSDJjVV3Zu4v1E3",
-          "title": "manual test map '"$i"'",
-          "visibility": "public"
-    }'
+#     curl -s -X POST "$API_URL" \
+#     -H "Content-Type: application/json" \
+#     -H "x-service-token: $TOKEN" \
+#     -d '{
+#           "uid": "OtUU0vC1QJSUXUSDJjVV3Zu4v1E3",
+#           "title": "manual test map '"$i"'",
+#           "visibility": "public"
+#     }'
     
-    echo
-done
+#     echo
+# done
 
 # curl -X POST http://localhost:5000/create-node \
 #   -H "Content-Type: application/json" \
@@ -82,3 +82,8 @@ done
 # curl -X POST http://localhost:5000/get-map-members-by-map-id?=2 \
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
+
+curl -X POST http://localhost:5000/get-maps-by-uid?id=OtUU0vC1QJSUXUSDJjVV3Zu4v1E3 \
+  -H "Content-Type: application/json" \
+  -H "x-service-token: $TOKEN" \
+
