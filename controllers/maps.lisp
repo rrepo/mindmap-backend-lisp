@@ -103,4 +103,7 @@
           (params (utils:parse-query-string-plist qs))
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
-           (models.maps:get-maps-by-user-uid-with-nodes id)))))
+     (format *error-output* "Getting maps for user UID=~A~%" id)
+           (let ((maps (models.maps:get-maps-by-user-uid-with-nodes id)))
+             (format *error-output* "Fetched ~A maps " maps)
+             maps)))))
