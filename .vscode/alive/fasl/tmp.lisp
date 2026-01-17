@@ -1,124 +1,121 @@
-(defpackage :controllers.maps
-  (:use :cl :jonathan)
-  (:export handle-get-all-maps
-           handle-get-map
-           handle-get-maps-by-uid
-           handle-create-map
-           handle-update-map
-           handle-delete-map
-           handle-get-map-details
-           handle-count-private-maps
-           handle-get-public-maps-by-search
-           handle-get-public-maps))
+(defpackage :models.nodes
+  (:use :cl :postmodern)
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map get-nodes-by-map-ids))
 
-(in-package :controllers.maps)
-(defun handle-get-map (env)
-  (utils:with-invalid
-   (format *error-output* "Get map calleddd!!fdfdfd~%")
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (let* ((map (models.maps:get-map id))
-                  (nodes (models.nodes:get-nodes-by-map-id id)))
-             ;; map は plist なので append で nodes を追加
-             (append map (list :nodes nodes)))))))
+(in-package :models.nodes)
 
-(defun handle-get-all-maps ()
-  (utils:with-invalid
-   (let* ((maps (models.maps:get-all-maps)))
-     maps)))
+(defun get-all-nodes ()
+  "Fetch all nodes from the nodes table."
+  (postmodern:query
+   "SELECT * FROM nodes
+    ORDER BY id"
+   :rows :plists))
 
-(defun handle-create-map (env)
-  "env からリクエストボディを取り出してマップ作成。uuid を返す"
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (title (getf params :|title|))
-          (uid (getf params :|uid|))
-          (visibility (getf params :|visibility|)))
-     (when (and title uid visibility)
-           (let ((uuid (models.maps:create-map title uid visibility)))
-             uuid)))))
+(defun get-nodes-by-map-id (map-id)
+  "Fetch all nodes belonging to the given map ID."
+  (postmodern:query
+   "SELECT * FROM nodes
+    WHERE map_id = $1
+    ORDER BY id"
+   map-id :rows :plists))
 
-(defun handle-update-map (env)
-  (utils:with-invalid
-   (format *error-output* "Update user called~%")
-   (let* ((params (utils:extract-json-params env))
-          (id (getf params :|id|))
-          (uid (getf params :|uid|))
-          (title (getf params :|title|))
-          (visibility (getf params :|visibility|)))
-     (format *error-output* "Update params: id=~A, uid=~A, title=~A, visibility=~A~%" id uid title visibility)
-     (models.maps:update-map id :owner-uid uid :title title :visibility visibility)
-     :success)))
+(defun create-node (map-id parent-id content user-uid)
+  "Insert a new node into the nodes table and return its id."
+  (caar
+    (postmodern:query
+     "INSERT INTO nodes (map_id, parent_id, content, user_uid)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id"
+     map-id
+     (if parent-id parent-id :null)
+     content
+     user-uid)))
 
-(defun handle-delete-map (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:delete-map id)
-           :success))))
+(defun update-node (id &key content parent-id parent-id-specified-p)
+  (cond
+   ;; content + parent-id 両方更新
+   ((and content parent-id-specified-p)
+     (postmodern:execute
+      "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3"
+      content parent-id id))
 
-(defun handle-get-map-details (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (format *error-output* "Get map details called with ID=~A~%" id)
-     (when (and id (not (string= id "")))
-           (services.mindmaps:get-map-details id)))))
+   ;; content のみ更新
+   (content
+     (postmodern:execute
+      "UPDATE nodes SET content = $1 WHERE id = $2"
+      content id))
+
+   ;; parent-id のみ更新（NULL 含む）
+   (parent-id-specified-p
+     (postmodern:execute
+      "UPDATE nodes SET parent_id = $1 WHERE id = $2"
+      parent-id id))
+
+   ;; 何も更新しない
+   (t
+     nil)))
 
 
-(defun handle-count-private-maps (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (models.maps:count-private-maps-by-user-uid id)))))
+(defun delete-node (id)
+  "Delete a map by its ID."
+  (postmodern:execute
+   "DELETE FROM nodes WHERE id = $1"
+   id))
 
+(defun delete-nodes-by-map-id (map-id)
+  "指定された MAP_ID に紐づくすべての nodes レコードを削除する。"
+  (postmodern:execute
+   "DELETE FROM nodes
+    WHERE map_id = $1"
+   map-id))
 
-(defun handle-get-public-maps-by-search (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (search (getf params :search)))
-     (when (and search (not (string= search "")))
-           (models.maps:search-public-maps-by-title search)))))
+(defun delete-node-with-descendants (node-id map-id)
+  (postmodern:execute
+   "
+WITH RECURSIVE descendants AS (
+    SELECT id
+    FROM nodes
+    WHERE id = $1 AND map_id = $2
 
-(defun ensure-number (value &optional (default 1))
-  (or (ignore-errors
-        (etypecase value
-          (number value)
-          (string (parse-integer value))))
-      default))
+    UNION ALL
 
-(defun page->offset-zero-based (page &optional (limit 30))
-  "page=1 -> offset 0, page=2 -> offset limit"
-  (let ((page-num (ensure-number page 1)))
-    (* (max 0 (1- page-num)) limit)))
+    SELECT n.id
+    FROM nodes n
+    INNER JOIN descendants d
+      ON n.parent_id = d.id
+)
+DELETE FROM nodes
+WHERE id IN (SELECT id FROM descendants)
+"
+   node-id map-id))
 
-(defun handle-get-public-maps (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (page (getf params :page))
-          (limit-param (getf params :limit))
-          (limit (ensure-number limit-param 30))
-          (offset (page->offset-zero-based page limit)))
-     (format *error-output* "Getting public maps for page=~A, offset=~A~%" page offset)
-     (models.maps:get-public-maps-with-nodes
-      :limit limit
-      :offset offset))))
+(defun get-nodes-by-map (map-id)
+  "Fetch up to 10 nodes for a map."
+  (postmodern:query
+   "SELECT id, parent_id, content, user_uid, created_at, updated_at
+    FROM nodes
+    WHERE map_id = $1
+    ORDER BY created_at DESC
+    LIMIT 10"
+   map-id :rows :plist))
 
-(defun handle-get-maps-by-uid (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (id (getf params :ID)))
-     (when (and id (not (string= id "")))
-           (format *error-output* "Getting maps for user UID=~A~%" id)
-           (let ((maps (models.maps:get-maps-by-user-uid-with-nodes id)))
-             maps)))))
+(defun get-nodes-by-map-ids (map-ids)
+  (let* ((ids (utils:ensure-integers map-ids))
+         (in-clause (utils:sql-in-clause ids)))
+    (postmodern:query
+     (format nil
+         "
+SELECT
+  id,
+  map_id,
+  parent_id,
+  content,
+  user_uid,
+  created_at,
+  updated_at
+FROM nodes
+WHERE map_id IN (~A)
+ORDER BY map_id, created_at DESC
+LIMIT 10
+" in-clause)
+     :rows :plists)))

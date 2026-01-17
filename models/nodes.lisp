@@ -1,6 +1,6 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map))
+  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map get-nodes-by-map-ids))
 
 (in-package :models.nodes)
 
@@ -98,3 +98,24 @@ WHERE id IN (SELECT id FROM descendants)
     ORDER BY created_at DESC
     LIMIT 10"
    map-id :rows :plist))
+
+(defun get-nodes-by-map-ids (map-ids)
+  (let* ((ids (utils:ensure-integers map-ids))
+         (in-clause (utils:sql-in-clause ids)))
+    (postmodern:query
+     (format nil
+         "
+SELECT
+  id,
+  map_id,
+  parent_id,
+  content,
+  user_uid,
+  created_at,
+  updated_at
+FROM nodes
+WHERE map_id IN (~A)
+ORDER BY map_id, created_at DESC
+LIMIT 10
+" in-clause)
+     :rows :plists)))

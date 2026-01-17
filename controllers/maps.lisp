@@ -100,18 +100,22 @@
   (let ((page-num (ensure-number page 1)))
     (* (max 0 (1- page-num)) limit)))
 
+; (defun handle-get-public-maps (env)
+;   (utils:with-invalid
+;    (let* ((qs (getf env :query-string))
+;           (params (utils:parse-query-string-plist qs))
+;           (page (getf params :page))
+;           (limit-param (getf params :limit))
+;           (limit (ensure-number limit-param 30))
+;           (offset (page->offset-zero-based page limit)))
+;      (format *error-output* "Getting public maps for page=~A, offset=~A~%" page offset)
+;      (models.maps:get-public-maps
+;       :limit limit
+;       :offset offset))))
+
 (defun handle-get-public-maps (env)
   (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (page (getf params :page))
-          (limit-param (getf params :limit))
-          (limit (ensure-number limit-param 30))
-          (offset (page->offset-zero-based page limit)))
-     (format *error-output* "Getting public maps for page=~A, offset=~A~%" page offset)
-     (models.maps:get-public-maps-with-nodes
-      :limit limit
-      :offset offset))))
+   "good"))
 
 (defun handle-get-maps-by-uid (env)
   (utils:with-invalid
@@ -120,5 +124,5 @@
           (id (getf params :ID)))
      (when (and id (not (string= id "")))
            (format *error-output* "Getting maps for user UID=~A~%" id)
-           (let ((maps (models.maps:get-maps-by-user-uid-with-nodes id)))
+           (let ((maps (services.mindmaps:get-related-maps-with-nodes id)))
              maps)))))
