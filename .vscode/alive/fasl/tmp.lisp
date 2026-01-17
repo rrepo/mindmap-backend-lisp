@@ -213,49 +213,44 @@ LIMIT $1 OFFSET $2
    limit offset
    :rows :plists))
 
-(defun normalize-nodes-field (map)
-  "Ensure :nodes is always a list."
-  (let ((nodes (getf map :nodes)))
-    (cond
-     ((stringp nodes)
-       (let ((parsed (utils:safe-parse-json nodes)))
-         (setf (getf map :nodes)
-           (if (eq parsed :invalid)
-               '()
-               parsed))))
-     ((listp nodes)
-       map)
-     (t
-       (setf (getf map :nodes) '())))
-    map))
-
 (defun get-maps-by-user-uid-with-nodes (user-uid)
-  (postmodern:query
-   "WITH ranked_nodes AS (
-      SELECT n.*, 
-             ROW_NUMBER() OVER (PARTITION BY n.map_id ORDER BY n.created_at DESC) AS rn 
-      FROM nodes n
-    )
-    SELECT m.id, m.uuid, m.title, m.owner_uid, m.visibility, 
-           m.created_at, m.updated_at,
-           COALESCE(
-             json_agg(
-               json_build_object(
-                 'id', rn.id,
-                 'parent_id', rn.parent_id,
-                 'content', rn.content,
-                 'user_uid', rn.user_uid,
-                 'created_at', rn.created_at,
-                 'updated_at', rn.updated_at
-               ) ORDER BY rn.created_at DESC
-             ) FILTER (WHERE rn.id IS NOT NULL),
-             '[]'
-           ) AS nodes
-    FROM maps m
-    LEFT JOIN map_members mm ON m.id = mm.map_id
-    LEFT JOIN ranked_nodes rn ON rn.map_id = m.id AND rn.rn <= 10
-    WHERE m.owner_uid = $1 OR mm.user_uid = $1
-    GROUP BY m.id
-    ORDER BY m.created_at DESC"
-   user-uid ; :parametersの代わりに直接渡す
-   :plists))
+  (let ((maps (postmodern:query
+               "WITH ranked_nodes AS (
+                  SELECT n.*, 
+                         ROW_NUMBER() OVER (PARTITION BY n.map_id ORDER BY n.created_at DESC) AS rn 
+                  FROM nodes n
+                )
+                SELECT m.id, m.uuid, m.title, m.owner_uid, m.visibility, 
+                       m.created_at, m.updated_at,
+                       COALESCE(
+                         json_agg(
+                           json_build_object(
+                             'id', rn.id,
+                             'parent_id', rn.parent_id,
+                             'content', rn.content,
+                             'user_uid', rn.user_uid,
+                             'created_at', rn.created_at,
+                             'updated_at', rn.updated_at
+                           ) ORDER BY rn.created_at DESC
+                         ) FILTER (WHERE rn.id IS NOT NULL),
+                         '[]'::json
+                       ) AS nodes
+                FROM maps m
+                LEFT JOIN map_members mm ON m.id = mm.map_id
+                LEFT JOIN ranked_nodes rn ON rn.map_id = m.id AND rn.rn <= 10
+                WHERE m.owner_uid = $1 OR mm.user_uid = $1
+                GROUP BY m.id
+                ORDER BY m.created_at DESC"
+               user-uid
+               :plists)))
+    ;; 各mapのnodesフィールドをJSONパース
+    (mapcar (lambda (map)
+              (let ((nodes-str (getf map :nodes)))
+                (setf (getf map :nodes)
+                  (if (or (null nodes-str)
+                          (string= nodes-str "[]")
+                          (string= nodes-str ""))
+                      nil
+                      (com.inuoe.jzon:parse nodes-str))))
+              map)
+        maps)))
