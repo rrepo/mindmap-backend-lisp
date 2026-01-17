@@ -83,7 +83,10 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-curl -X POST http://localhost:5000/get-maps-by-uid?id=OtUU0vC1QJSUXUSDJjVV3Zu4v1E3 \
+# curl -X POST http://localhost:5000/get-maps-by-uid?id=OtUU0vC1QJSUXUSDJjVV3Zu4v1E3 \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
+
+curl -X POST http://localhost:5000/get-latest-public-maps \
   -H "Content-Type: application/json" \
   -H "x-service-token: $TOKEN" \
-

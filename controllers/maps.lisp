@@ -88,34 +88,19 @@
      (when (and search (not (string= search "")))
            (models.maps:search-public-maps-by-title search)))))
 
-(defun ensure-number (value &optional (default 1))
-  (or (ignore-errors
-        (etypecase value
-          (number value)
-          (string (parse-integer value))))
-      default))
-
-(defun page->offset-zero-based (page &optional (limit 30))
-  "page=1 -> offset 0, page=2 -> offset limit"
-  (let ((page-num (ensure-number page 1)))
-    (* (max 0 (1- page-num)) limit)))
-
-; (defun handle-get-public-maps (env)
-;   (utils:with-invalid
-;    (let* ((qs (getf env :query-string))
-;           (params (utils:parse-query-string-plist qs))
-;           (page (getf params :page))
-;           (limit-param (getf params :limit))
-;           (limit (ensure-number limit-param 30))
-;           (offset (page->offset-zero-based page limit)))
-;      (format *error-output* "Getting public maps for page=~A, offset=~A~%" page offset)
-;      (models.maps:get-public-maps
-;       :limit limit
-;       :offset offset))))
 
 (defun handle-get-public-maps (env)
   (utils:with-invalid
-   "good"))
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (page (getf params :page))
+          (limit-param (getf params :limit)))
+     (format *error-output* "Getting public maps for page=~A, limit=~A~%" page limit-param)
+     (services.mindmaps:get-public-maps
+      :limit (if limit-param
+                 (utils:ensure-integer limit-param 30)
+                 30)
+      :offset (utils:page->offset-zero-based page (utils:ensure-integer limit-param 30))))))
 
 (defun handle-get-maps-by-uid (env)
   (utils:with-invalid
