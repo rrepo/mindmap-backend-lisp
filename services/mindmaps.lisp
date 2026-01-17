@@ -1,6 +1,6 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-details get-public-maps-with-nodes))
+  (:export get-map-details get-public-maps))
 
 (in-package :services.mindmaps)
 
@@ -23,40 +23,3 @@
             (list :nodes nodes
                   :users users)))))
 
-(defun ensure-number (value &optional (default 1))
-  (or (ignore-errors
-        (etypecase value
-          (number value)
-          (string (parse-integer value))))
-      default))
-
-(defun page->offset-zero-based (page &optional (limit 30))
-  "page=1 -> offset 0, page=2 -> offset limit"
-  (let ((page-num (ensure-number page 1)))
-    (* (max 0 (1- page-num)) limit)))
-
-(defun handle-get-public-maps-with-nodes (env)
-  (utils:with-invalid
-   (let* ((qs (getf env :query-string))
-          (params (utils:parse-query-string-plist qs))
-          (page (or (getf params :page) 1))
-          (limit (or (getf params :limit) 30)))
-     (models.maps:get-public-maps-with-nodes
-      :page page
-      :limit limit))))
-
-
-; (defun get-all-maps-by-user-uid (user-uid)
-;   "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得"
-;   (let* ((owner-maps (models.maps:get-maps-by-user-uid user-uid))
-;          (members (models.map-members:get-map-members-by-user-uid user-uid))
-;          (member-map-ids (mapcar (lambda (m) (getf m :|MAP-ID|)) members))
-;          ;; 一括取得に変更
-;          (member-maps (if member-map-ids
-;                           (models.maps:get-maps-by-ids member-map-ids)
-;                           nil))
-;          (all-maps (remove-duplicates
-;                        (append owner-maps member-maps)
-;                      :test #'equal
-;                      :key (lambda (m) (getf m :|ID|)))))
-;     all-maps))
