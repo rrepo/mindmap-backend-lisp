@@ -5,7 +5,7 @@
   (:import-from :frugal-uuid :make-v4 :to-string)
   (:import-from :ironclad :make-random-salt)
   (:import-from :cl-base64 :usb8-array-to-base64-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token :ensure-integers :sql-in-clause))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token :ensure-integers :sql-in-clause :ensure-integer :page->offset-zero-based))
 
 (in-package :utils)
 
@@ -87,3 +87,15 @@
 
 (defun sql-in-clause (ints)
   (format nil "~{~A~^,~}" ints))
+
+(defun ensure-integer (value &optional (default 1))
+  (or (ignore-errors
+        (etypecase value
+          (number value)
+          (string (parse-integer value))))
+      default))
+
+(defun page->offset-zero-based (page &optional (limit 30))
+  "page=1 -> offset 0, page=2 -> offset limit"
+  (let ((page-num (ensure-integer page 1)))
+    (* (max 0 (1- page-num)) limit)))

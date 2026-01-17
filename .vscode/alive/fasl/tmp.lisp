@@ -1,121 +1,58 @@
-(defpackage :models.nodes
-  (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map get-nodes-by-map-ids))
+(defpackage :services.mindmaps
+  (:use :cl)
+  (:export get-map-details get-public-maps get-related-maps-with-nodes))
 
-(in-package :models.nodes)
+(in-package :services.mindmaps)
 
-(defun get-all-nodes ()
-  "Fetch all nodes from the nodes table."
-  (postmodern:query
-   "SELECT * FROM nodes
-    ORDER BY id"
-   :rows :plists))
+(defun get-map-details (map-uuid)
+  "指定 map-id の map と関連する情報を plist で返す"
+  (when map-uuid
+        (let* ((map (models.maps:get-map-by-uuid map-uuid))
+               (map-id (getf map :id))
+               (nodes (models.nodes:get-nodes-by-map-id map-id))
+               (members (models.map-members:get-map-members-by-map-id map-id))
+               (owner-uid (getf map :owner-uid))
+               (node-uids (mapcar (lambda (n) (getf n :user-uid)) nodes))
+               (member-uids (mapcar (lambda (m) (getf m :user-uid)) members))
+               (all-uids (remove-duplicates
+                             (append (list owner-uid) node-uids member-uids)
+                           :test #'string=))
+               (users (models.users:get-users all-uids)))
+          ;; --- まとめて返す ---
+          (append map
+            (list :nodes nodes
+                  :users users)))))
 
-(defun get-nodes-by-map-id (map-id)
-  "Fetch all nodes belonging to the given map ID."
-  (postmodern:query
-   "SELECT * FROM nodes
-    WHERE map_id = $1
-    ORDER BY id"
-   map-id :rows :plists))
+(defun extract-map-ids (maps)
+  (mapcar (lambda (m) (getf m :id)) maps))
 
-(defun create-node (map-id parent-id content user-uid)
-  "Insert a new node into the nodes table and return its id."
-  (caar
-    (postmodern:query
-     "INSERT INTO nodes (map_id, parent_id, content, user_uid)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id"
-     map-id
-     (if parent-id parent-id :null)
-     content
-     user-uid)))
+(defun attach-nodes (maps nodes)
+  (let ((table (make-hash-table :test #'eql)))
+    (dolist (n nodes)
+      (let ((mid (getf n :map-id))) ;; ← これで取れる
+        (push n (gethash mid table))))
 
-(defun update-node (id &key content parent-id parent-id-specified-p)
-  (cond
-   ;; content + parent-id 両方更新
-   ((and content parent-id-specified-p)
-     (postmodern:execute
-      "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3"
-      content parent-id id))
+    (mapcar
+        (lambda (m)
+          (let* ((mid (getf m :id))
+                 (ns (gethash mid table)))
+            (list* :nodes (subseq (or ns '()) 0 (min 10 (length ns)))
+              m)))
+        maps)))
 
-   ;; content のみ更新
-   (content
-     (postmodern:execute
-      "UPDATE nodes SET content = $1 WHERE id = $2"
-      content id))
+(defun get-related-maps-with-nodes (user-uid)
+  "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得し、nodesを付与して返す"
+  (when user-uid
+        (let* ((maps (models.maps:get-related-maps user-uid))
+               (map-ids (extract-map-ids maps))
+               (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
+          (attach-nodes maps nodes))))
 
-   ;; parent-id のみ更新（NULL 含む）
-   (parent-id-specified-p
-     (postmodern:execute
-      "UPDATE nodes SET parent_id = $1 WHERE id = $2"
-      parent-id id))
-
-   ;; 何も更新しない
-   (t
-     nil)))
-
-
-(defun delete-node (id)
-  "Delete a map by its ID."
-  (postmodern:execute
-   "DELETE FROM nodes WHERE id = $1"
-   id))
-
-(defun delete-nodes-by-map-id (map-id)
-  "指定された MAP_ID に紐づくすべての nodes レコードを削除する。"
-  (postmodern:execute
-   "DELETE FROM nodes
-    WHERE map_id = $1"
-   map-id))
-
-(defun delete-node-with-descendants (node-id map-id)
-  (postmodern:execute
-   "
-WITH RECURSIVE descendants AS (
-    SELECT id
-    FROM nodes
-    WHERE id = $1 AND map_id = $2
-
-    UNION ALL
-
-    SELECT n.id
-    FROM nodes n
-    INNER JOIN descendants d
-      ON n.parent_id = d.id
-)
-DELETE FROM nodes
-WHERE id IN (SELECT id FROM descendants)
-"
-   node-id map-id))
-
-(defun get-nodes-by-map (map-id)
-  "Fetch up to 10 nodes for a map."
-  (postmodern:query
-   "SELECT id, parent_id, content, user_uid, created_at, updated_at
-    FROM nodes
-    WHERE map_id = $1
-    ORDER BY created_at DESC
-    LIMIT 10"
-   map-id :rows :plist))
-
-(defun get-nodes-by-map-ids (map-ids)
-  (let* ((ids (utils:ensure-integers map-ids))
-         (in-clause (utils:sql-in-clause ids)))
-    (postmodern:query
-     (format nil
-         "
-SELECT
-  id,
-  map_id,
-  parent_id,
-  content,
-  user_uid,
-  created_at,
-  updated_at
-FROM nodes
-WHERE map_id IN (~A)
-ORDER BY map_id, created_at DESC
-LIMIT 10
-" in-clause)
-     :rows :plists)))
+(defun get-public-maps (&key (limit 30) (offset 0))
+  "公開マップを取得し、nodesを付与して返す"
+  (let* ((maps (models.maps:get-latest-public-maps
+                :limit limit
+                :offset offset))
+         (map-ids (extract-map-ids maps))
+         (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
+    (attach-nodes maps nodes)))

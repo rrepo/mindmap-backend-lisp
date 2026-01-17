@@ -26,8 +26,6 @@
 (defun extract-map-ids (maps)
   (mapcar (lambda (m) (getf m :id)) maps))
 
-(make-hash-table :test #'equal)
-
 (defun attach-nodes (maps nodes)
   (let ((table (make-hash-table :test #'eql)))
     (dolist (n nodes)
@@ -42,7 +40,6 @@
               m)))
         maps)))
 
-
 (defun get-related-maps-with-nodes (user-uid)
   "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得し、nodesを付与して返す"
   (when user-uid
@@ -50,3 +47,12 @@
                (map-ids (extract-map-ids maps))
                (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
           (attach-nodes maps nodes))))
+
+(defun get-public-maps (&key (limit 30) (offset 0))
+  "公開マップを取得し、nodesを付与して返す"
+  (let* ((maps (models.maps:get-latest-public-maps
+                :limit limit
+                :offset offset))
+         (map-ids (extract-map-ids maps))
+         (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
+    (attach-nodes maps nodes)))

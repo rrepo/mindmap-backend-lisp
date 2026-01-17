@@ -11,7 +11,7 @@
            delete-map
            count-private-maps-by-user-uid
            search-public-maps-by-title
-           get-public-maps
+           get-latest-public-maps
            get-related-maps))
 
 (in-package :models.maps)
@@ -167,52 +167,6 @@
    limit offset
    :rows :plists))
 
-(defun get-public-maps (&key (limit 30) (offset 0))
-  "Fetch public maps with up to 10 nodes each (single optimized query)."
-  (postmodern:query
-   "
-WITH ranked_nodes AS (
-  SELECT
-    n.*,
-    ROW_NUMBER() OVER (
-      PARTITION BY n.map_id
-      ORDER BY n.created_at DESC
-    ) AS rn
-  FROM nodes n
-)
-SELECT
-  m.id,
-  m.uuid,
-  m.title,
-  m.owner_uid,
-  m.visibility,
-  m.created_at,
-  m.updated_at,
-  COALESCE(
-    json_agg(
-      json_build_object(
-        'id', rn.id,
-        'parent_id', rn.parent_id,
-        'content', rn.content,
-        'user_uid', rn.user_uid,
-        'created_at', rn.created_at,
-        'updated_at', rn.updated_at
-      )
-      ORDER BY rn.created_at DESC
-    ) FILTER (WHERE rn.id IS NOT NULL),
-    '[]'
-  ) AS nodes
-FROM maps m
-LEFT JOIN ranked_nodes rn
-  ON rn.map_id = m.id AND rn.rn <= 10
-WHERE m.visibility = 'public'
-GROUP BY m.id
-ORDER BY m.created_at DESC
-LIMIT $1 OFFSET $2
-"
-   limit offset
-   :rows :plists))
-
 (defun get-related-maps (user-uid)
   (postmodern:query
    "
@@ -232,4 +186,3 @@ ORDER BY m.updated_at DESC
 "
    user-uid
    :rows :plists))
-
