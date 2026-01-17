@@ -2,10 +2,10 @@
   :depends-on (:postmodern
                :split-sequence
                :jonathan
+               :com.inuoe.jzon
                :clack
                :woo
                :websocket-driver-server
-               :jsown
                :local-time
                :frugal-uuid
                :babel
