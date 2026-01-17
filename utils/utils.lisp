@@ -5,7 +5,7 @@
   (:import-from :frugal-uuid :make-v4 :to-string)
   (:import-from :ironclad :make-random-salt)
   (:import-from :cl-base64 :usb8-array-to-base64-string)
-  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token))
+  (:export :parse-query-string :parse-request-body-string :safe-parse-json :parse-query-string-plist :header-value :extract-json-params :with-invalid :get-path-param :secure-random-base64 :uuid-string :generate-secure-invite-token :ensure-integers :sql-in-clause))
 
 (in-package :utils)
 
@@ -81,3 +81,9 @@
     ;; パディングを削除してさらに短く
     (string-right-trim "="
                        (cl-base64:usb8-array-to-base64-string random-bytes :uri t))))
+
+(defun ensure-integers (lst)
+  (mapcar #'parse-integer (mapcar #'princ-to-string lst)))
+
+(defun sql-in-clause (ints)
+  (format nil "~{~A~^,~}" ints))

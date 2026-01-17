@@ -1,6 +1,6 @@
 (defpackage :services.mindmaps
   (:use :cl)
-  (:export get-map-details get-public-maps))
+  (:export get-map-details get-public-maps get-related-maps-with-nodes))
 
 (in-package :services.mindmaps)
 
@@ -23,3 +23,30 @@
             (list :nodes nodes
                   :users users)))))
 
+(defun extract-map-ids (maps)
+  (mapcar (lambda (m) (getf m :id)) maps))
+
+(make-hash-table :test #'equal)
+
+(defun attach-nodes (maps nodes)
+  (let ((table (make-hash-table :test #'eql)))
+    (dolist (n nodes)
+      (let ((mid (getf n :map-id))) ;; ← これで取れる
+        (push n (gethash mid table))))
+
+    (mapcar
+        (lambda (m)
+          (let* ((mid (getf m :id))
+                 (ns (gethash mid table)))
+            (list* :nodes (subseq (or ns '()) 0 (min 10 (length ns)))
+              m)))
+        maps)))
+
+
+(defun get-related-maps-with-nodes (user-uid)
+  "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得し、nodesを付与して返す"
+  (when user-uid
+        (let* ((maps (models.maps:get-related-maps user-uid))
+               (map-ids (extract-map-ids maps))
+               (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
+          (attach-nodes maps nodes))))
