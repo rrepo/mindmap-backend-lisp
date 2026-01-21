@@ -37,7 +37,7 @@
    ((and content parent-id-specified-p)
      (postmodern:execute
       "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3"
-      content parent-id id))
+      content (if parent-id parent-id :null) id))
 
    ;; content のみ更新
    (content
@@ -49,7 +49,7 @@
    (parent-id-specified-p
      (postmodern:execute
       "UPDATE nodes SET parent_id = $1 WHERE id = $2"
-      parent-id id))
+      (if parent-id parent-id :null) id))
 
    ;; 何も更新しない
    (t

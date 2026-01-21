@@ -1,58 +1,65 @@
-(defpackage :services.mindmaps
-  (:use :cl)
-  (:export get-map-details get-public-maps get-related-maps-with-nodes))
+(defpackage :controllers.nodes
+  (:use :cl :jonathan)
+  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants))
 
-(in-package :services.mindmaps)
+(in-package :controllers.nodes)
 
-(defun get-map-details (map-uuid)
-  "指定 map-id の map と関連する情報を plist で返す"
-  (when map-uuid
-        (let* ((map (models.maps:get-map-by-uuid map-uuid))
-               (map-id (getf map :id))
-               (nodes (models.nodes:get-nodes-by-map-id map-id))
-               (members (models.map-members:get-map-members-by-map-id map-id))
-               (owner-uid (getf map :owner-uid))
-               (node-uids (mapcar (lambda (n) (getf n :user-uid)) nodes))
-               (member-uids (mapcar (lambda (m) (getf m :user-uid)) members))
-               (all-uids (remove-duplicates
-                             (append (list owner-uid) node-uids member-uids)
-                           :test #'string=))
-               (users (models.users:get-users all-uids)))
-          ;; --- まとめて返す ---
-          (append map
-            (list :nodes nodes
-                  :users users)))))
+(defun handle-get-all-nodes ()
+  (utils:with-invalid
+   (let* ((nodes (models.nodes:get-all-nodes)))
+     (format *error-output* "All nodes: ~A~%" nodes)
+     nodes)))
 
-(defun extract-map-ids (maps)
-  (mapcar (lambda (m) (getf m :id)) maps))
+(defun handle-create-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (map-id (getf params :|map-id|))
+          (parent-id (getf params :|parent-id|))
+          (uid (getf params :|uid|))
+          (content (getf params :|content|)))
+     (format *error-output*
+         "Create params: map-id=~A, parent-id=~A, uid=~A, content=~A~%"
+       map-id parent-id uid content)
+     (when (and map-id content uid)
+           (models.nodes:create-node map-id parent-id content uid)))))
 
-(defun attach-nodes (maps nodes)
-  (let ((table (make-hash-table :test #'eql)))
-    (dolist (n nodes)
-      (let ((mid (getf n :map-id))) ;; ← これで取れる
-        (push n (gethash mid table))))
+(defun handle-update-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          ;; parent-id がクエリに含まれているかどうかを判定
+          (has-parent-id (not (null (member :|parent-id| params))))
+          (parent-id (when has-parent-id
+                           (getf params :|parent-id|)))
+          (content (getf params :|content|)))
+     (format *error-output*
+         "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
+       id has-parent-id parent-id content)
+     (when id
+           (models.nodes:update-node
+            id
+            :content content
+            :parent-id parent-id
+            :parent-id-specified-p has-parent-id)
+           :success))))
 
-    (mapcar
-        (lambda (m)
-          (let* ((mid (getf m :id))
-                 (ns (gethash mid table)))
-            (list* :nodes (subseq (or ns '()) 0 (min 10 (length ns)))
-              m)))
-        maps)))
 
-(defun get-related-maps-with-nodes (user-uid)
-  "ユーザーがownerまたはmemberとして関わっているすべてのmapを取得し、nodesを付与して返す"
-  (when user-uid
-        (let* ((maps (models.maps:get-related-maps user-uid))
-               (map-ids (extract-map-ids maps))
-               (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
-          (attach-nodes maps nodes))))
+(defun handle-delete-node (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node id)))))
 
-(defun get-public-maps (&key (limit 30) (offset 0))
-  "公開マップを取得し、nodesを付与して返す"
-  (let* ((maps (models.maps:get-latest-public-maps
-                :limit limit
-                :offset offset))
-         (map-ids (extract-map-ids maps))
-         (nodes (models.nodes:get-nodes-by-map-ids map-ids)))
-    (attach-nodes maps nodes)))
+(defun handle-delete-node-descendants (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID))
+          (map-id (getf params :MAP-ID)))
+     (format *error-output*
+         "Delete node descendants params: id=~A, map-id=~A~%"
+       id map-id)
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node-with-descendants id map-id)))))
