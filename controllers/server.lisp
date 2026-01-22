@@ -8,17 +8,37 @@
   `(setf (gethash ,path *http-routes*)
      (lambda (env) ,@body)))
 
+(defvar *http-routes* (make-hash-table :test #'equal))
+(defvar *ws-routes* (make-hash-table :test #'equal))
+
+(defparameter *ws-clients* (make-hash-table :test 'eq))
+
 (defmacro defroute-ws (path &body body)
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
-       (let ((ws (make-server env)))
+       (let* ((ws (make-server env))
+              (client-id (gensym "WS-CLIENT-")))
+         ;; 登録
+         (setf (gethash client-id *ws-clients*) ws)
+
+         ;; close 時に削除
+         (on :close ws
+             (lambda ()
+               (remhash client-id *ws-clients*)
+               (format t "~&[WS] Closed: ~A~%" client-id)))
+
          ,@body
+
          (lambda (responder)
            (declare (ignore responder))
            (start-connection ws))))))
 
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
+(defun ws-broadcast (message)
+  (maphash
+    (lambda (_id ws)
+      (ignore-errors
+        (send ws message)))
+    *ws-clients*))
 
 (defvar *my-app*
         ; (with-cors
