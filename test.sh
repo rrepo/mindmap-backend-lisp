@@ -87,6 +87,14 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-curl -X POST http://localhost:5000/get-latest-public-maps \
+# curl -X POST http://localhost:5000/get-latest-public-maps \
+#   -H "Content-Type: application/json" \
+#   -H "x-service-token: $TOKEN" \
+
+curl -X POST http://localhost:5000/update-node \
   -H "Content-Type: application/json" \
   -H "x-service-token: $TOKEN" \
+  -d '{
+    "id": 142,
+    "content": "manual test node"
+  }'

@@ -42,7 +42,7 @@
 
 (defun handle-update-map (env)
   (utils:with-invalid
-   (format *error-output* "Update user called~%")
+   (format *error-output* "Update map called~%")
    (let* ((params (utils:extract-json-params env))
           (id (getf params :|id|))
           (uid (getf params :|uid|))
