@@ -14,6 +14,7 @@
                :cl-dotenv)
   :serial t
   :components (
+                (:file "controllers/websocket-package")
                 (:file "utils/utils")
                 (:file "utils/verify")
                 (:file "models/initsql")

@@ -23,11 +23,15 @@
      (when (and map-id content uid)
            (models.nodes:create-node map-id parent-id content uid)))))
 
+(defun node-id->map-uuid (node-id)
+  (let ((rows (models.nodes:get-map-uuid-by-node-id node-id)))
+    (when rows
+          (getf (first rows) :uuid))))
+
 (defun handle-update-node (env)
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (id (getf params :|id|))
-          ;; parent-id がクエリに含まれているかどうかを判定
           (has-parent-id (not (null (member :|parent-id| params))))
           (parent-id (when has-parent-id
                            (getf params :|parent-id|)))
@@ -35,14 +39,30 @@
      (format *error-output*
          "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
        id has-parent-id parent-id content)
+
      (when id
+           ;; ① DB更新
            (models.nodes:update-node
             id
             :content content
             :parent-id parent-id
             :parent-id-specified-p has-parent-id)
-           :success))))
 
+           ;; ② map-uuid 特定
+           (let ((map-uuid (node-id->map-uuid id)))
+             (format *error-output* "!!!mapuuid=~A,"
+               map-uuid)
+             (when map-uuid
+                   ;; ③ WSブロードキャスト
+                   (websocket-app:ws-broadcast-to-map
+                    map-uuid
+                    (jonathan:to-json
+                     `(:type "NODE_UPDATED"
+                             :nodeId ,id
+                             :content ,content
+                             :parentId ,parent-id)))))
+
+           :success))))
 
 (defun handle-delete-node (env)
   (utils:with-invalid

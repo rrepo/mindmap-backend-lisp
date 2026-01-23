@@ -1,6 +1,7 @@
 (defpackage :models.nodes
   (:use :cl :postmodern)
-  (:export get-all-nodes get-nodes-by-map-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map get-nodes-by-map-ids))
+  (:export get-all-nodes
+           get-nodes-by-map-id get-map-uuid-by-node-id create-node update-node delete-node delete-nodes-by-map-id delete-node-with-descendants get-nodes-by-map get-nodes-by-map-ids))
 
 (in-package :models.nodes)
 
@@ -9,6 +10,16 @@
   (postmodern:query
    "SELECT * FROM nodes
     ORDER BY id"
+   :rows :plists))
+
+(defun get-map-uuid-by-node-id (node-id)
+  "Return map.uuid for given node-id, or NIL if not found."
+  (postmodern:query
+   "SELECT m.uuid
+      FROM nodes n
+      JOIN maps m ON n.map_id = m.id
+     WHERE n.id = $1"
+   node-id
    :rows :plists))
 
 (defun get-nodes-by-map-id (map-id)

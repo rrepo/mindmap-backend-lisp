@@ -1,45 +1,8 @@
-(defpackage :websocket-app
-  (:use :cl :clack :websocket-driver :cl-dotenv)
-  (:export :start-app :*my-app* :stop-app))
-
 (in-package :websocket-app)
-
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
 
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
-
 (defparameter *ws-clients* (make-hash-table :test 'eq))
-
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let* ((ws (make-server env))
-              (client-id (gensym "WS-CLIENT-")))
-         ;; 登録
-         (setf (gethash client-id *ws-clients*) ws)
-
-         ;; close 時に削除
-         (on :close ws
-             (lambda ()
-               (remhash client-id *ws-clients*)
-               (format t "~&[WS] Closed: ~A~%" client-id)))
-
-         ,@body
-
-         (lambda (responder)
-           (declare (ignore responder))
-           (start-connection ws))))))
-
-(defun ws-broadcast (message)
-  (maphash
-    (lambda (_id ws)
-      (ignore-errors
-        (send ws message)))
-    *ws-clients*))
-
 (defvar *my-app*
         ; (with-cors
         (lambda (env)
@@ -71,6 +34,79 @@
                (list 404
                      '(:content-type "text/plain")
                      '("Not Found")))))))
+
+(defmacro defroute-http (path &body body)
+  `(setf (gethash ,path *http-routes*)
+     (lambda (env) ,@body)))
+
+(defmacro defroute-ws (path &body body)
+  `(setf (gethash ,path *ws-routes*)
+     (lambda (env)
+       (let* ((ws (make-server env))
+              (client-id (gensym "WS-CLIENT-"))
+              (client (list
+                       :ws ws
+                       :subscriptions (make-hash-table :test 'equal))))
+
+         (setf (gethash client-id *ws-clients*) client)
+
+         (on :close ws
+             (lambda ()
+               (remhash client-id *ws-clients*)
+               (format t "~&[WS] Closed: ~A~%" client-id)))
+
+         ,@body
+
+         (lambda (_responder)
+           (start-connection ws))))))
+
+(defun ws-broadcast (message)
+  (maphash
+    (lambda (_id client)
+      (ignore-errors
+        (send (getf client :ws) message)))
+    *ws-clients*))
+
+(defun ws-broadcast-to-map (map-uuid message)
+  (maphash
+    (lambda (_id client)
+      (let* ((subs (getf client :subscriptions))
+             (client-map (and subs (gethash "map" subs))))
+        (when (and client-map
+                   (string= map-uuid client-map))
+              (ignore-errors
+                (send (getf client :ws) message)))))
+    *ws-clients*))
+
+(defroute-ws "/websocket"
+             (on :message ws
+                 (lambda (msg)
+                   (handler-case
+                       (let* ((data (jonathan:parse msg :as :hash-table))
+                              (type (string-upcase (gethash "type" data)))
+                              (target (gethash "target" data))
+                              (uuid (gethash "uuid" data))
+                              (subs (getf client :subscriptions)))
+                         (cond
+                          ((string= type "SUBSCRIBE")
+                            (format t "~&[WS SUB] target=~A uuid=~A~%" target uuid)
+                            (setf (gethash target subs) uuid)
+                            (send ws
+                                  (jonathan:to-json
+                                   `(:type "SUBSCRIBED"
+                                           :target ,target
+                                           :uuid ,uuid))))
+
+                          ((string= type "UNSUBSCRIBE")
+                            (remhash target subs)
+                            (send ws
+                                  (jonathan:to-json
+                                   `(:type "UNSUBSCRIBED"
+                                           :target ,target))))))
+
+                     (error (e)
+                       (format *error-output*
+                           "[WS ERROR] ~A~%" e))))))
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /5t")))
@@ -173,12 +209,6 @@
 
 (defroute-http "/get-map-details"
                (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (format t "~&[WS] Received: ~A~%" msg)
-                   (send ws (concatenate 'string "Echo: " msg)))))
 
 
 (defvar *current-server* nil
