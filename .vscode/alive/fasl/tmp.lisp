@@ -1,84 +1,89 @@
-(in-package :cl-user)
+(defpackage :controllers.nodes
+  (:use :cl :jonathan)
+  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants))
 
-(defparameter *dev-mode* t)
+(in-package :controllers.nodes)
 
-(defvar *reload-error* nil
-        "最後のリロードエラーを保持する。")
+(defun handle-get-all-nodes ()
+  (utils:with-invalid
+   (let* ((nodes (models.nodes:get-all-nodes)))
+     (format *error-output* "All nodes: ~A~%" nodes)
+     nodes)))
 
-(defvar *file-mod-times* (make-hash-table :test 'equal)
-        "ファイルごとの最終更新時刻を保持する。")
+(defun handle-create-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (map-id (getf params :|map-id|))
+          (parent-id (getf params :|parent-id|))
+          (uid (getf params :|uid|))
+          (content (getf params :|content|)))
+     (format *error-output*
+         "Create params: map-id=~A, parent-id=~A, uid=~A, content=~A~%"
+       map-id parent-id uid content)
+     (when (and map-id content uid)
+           (models.nodes:create-node map-id parent-id content uid)))))
 
-(defun dev-reloader (app)
-  (lambda (env)
-    (when *dev-mode*
-          (reload-dev))
-    ;; リロードエラーがあればエラーレスポンスを返す
-    (if *reload-error*
-        (list 500
-              '(:content-type "text/plain; charset=utf-8")
-              (list (format nil "Development Error: Failed to reload file~%~%~A"
-                      *reload-error*)))
-        (funcall app env))))
+(defun node-id->map-uuid (node-id)
+  (let ((rows (models.nodes:get-map-uuid-by-node-id node-id)))
+    (when rows
+          (getf (first rows) :uuid))))
 
-(defun reload-dev ()
-  (dolist (file '("utils/utils"
-                  "utils/verify"
-                  "models/initsql"
-                  "models/users"
-                  "models/maps"
-                  "models/nodes"
-                  "models/map-members"
-                  "models/map-invitations"
-                  "services/mindmaps"
-                  "controllers/users"
-                  "controllers/maps"
-                  "controllers/nodes"
-                  "controllers/map-members"
-                  "controllers/map-invitations"
-                  "utils/env"
-                  "utils/server-utils"
-                  "controllers/server"))
-    (let* ((pathname (asdf:system-relative-pathname "mindmap"
-                                                    (format nil "~A.lisp" file)))
-           (new-time (file-write-date pathname))
-           (old-time (gethash file *file-mod-times* 0)))
-      (when (> new-time old-time)
-            (format t "~%Reloading ~A...~%" file)
-            (handler-case
-                (progn
-                 (load pathname)
-                 (setf (gethash file *file-mod-times*) new-time)
-                 ;; 成功したらエラーをクリア
-                 (setf *reload-error* nil))
-              (error (e)
-                (format t "~%✗ Error while loading ~A: ~A~%" file e)
-                ;; エラー情報を保存（更新時刻は更新しない）
-                (setf *reload-error*
-                  (format nil "File: ~A~%Error: ~A" file e))
-                (return)))))))
+(defun handle-update-node (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (id (getf params :|id|))
+          (has-parent-id (not (null (member :|parent-id| params))))
+          (parent-id (when has-parent-id
+                           (getf params :|parent-id|)))
+          (content (getf params :|content|))
+          ;; ★ ここが重要
+          (json-parent-id
+           (if parent-id
+               parent-id
+               :null)))
 
-(defun start-mindmap-server ()
-  (utils-env:load-env)
-  (init-db-utils:init-db)
-  (format t "Starting Mindmap server on port 5000...~%")
-  (setf *server*
-    (clack:clackup
-     (dev-reloader websocket-app::*my-app*)
-     :server :woo
-     :port 5000)))
+     (format *error-output*
+         "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
+       id has-parent-id parent-id content)
 
-(start-mindmap-server)
+     (when id
+           ;; ① DB更新
+           (models.nodes:update-node
+            id
+            :content content
+            :parent-id parent-id
+            :parent-id-specified-p has-parent-id)
 
-; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
+           ;; ② map-uuid 特定
+           (let ((map-uuid (node-id->map-uuid id)))
+             (format *error-output* "!!!mapuuid=~A~%" map-uuid)
+             (when map-uuid
+                   ;; ③ WSブロードキャスト
+                   (websocket-app:ws-broadcast-to-target
+                    (format nil "map-~A" map-uuid)
+                    (jonathan:to-json
+                     `(:type "NODE_UPDATED"
+                             :nodeId ,id
+                             :content ,content
+                             :parentId ,json-parent-id))))))
+     :success)))
 
-; (defun stop-mindmap-server ()
-;   "Mindmap サーバー停止"
-;   (websocket-app:stop-app))
+(defun handle-delete-node (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID)))
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node id)))))
 
-; (asdf:load-system :mindmap)
-; (start-mindmap-server)
-; (stop-mindmap-server)
-
-;  (uiop:run-program "clear" :output *standard-output*)
-
-; sudo -u postgres psql
+(defun handle-delete-node-descendants (env)
+  (utils:with-invalid
+   (let* ((qs (getf env :query-string))
+          (params (utils:parse-query-string-plist qs))
+          (id (getf params :ID))
+          (map-id (getf params :MAP-ID)))
+     (format *error-output*
+         "Delete node descendants params: id=~A, map-id=~A~%"
+       id map-id)
+     (when (and id (not (string= id "")))
+           (models.nodes:delete-node-with-descendants id map-id)))))

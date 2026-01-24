@@ -35,7 +35,12 @@
           (has-parent-id (not (null (member :|parent-id| params))))
           (parent-id (when has-parent-id
                            (getf params :|parent-id|)))
-          (content (getf params :|content|)))
+          (content (getf params :|content|))
+          ;; ★ ここが重要
+          (json-parent-id
+           (if parent-id
+               parent-id
+               :null)))
 
      (format *error-output*
          "Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
@@ -53,16 +58,14 @@
            (let ((map-uuid (node-id->map-uuid id)))
              (format *error-output* "!!!mapuuid=~A~%" map-uuid)
              (when map-uuid
-                   ;; ③ WSブロードキャスト (O(サブスクライバー数))
-                   ;; ここで target を "map" + map-uuid に統一
+                   ;; ③ WSブロードキャスト
                    (websocket-app:ws-broadcast-to-target
                     (format nil "map-~A" map-uuid)
                     (jonathan:to-json
                      `(:type "NODE_UPDATED"
                              :nodeId ,id
                              :content ,content
-                             :parentId ,parent-id))))))
-
+                             :parentId ,json-parent-id))))))
      :success)))
 
 (defun handle-delete-node (env)
