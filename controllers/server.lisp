@@ -60,15 +60,17 @@
 ;;; close handler
 ;;; ---------------------------
 (defun ws-close-handler (ws)
-  "WS が閉じたとき client を削除し、subscriptions からも取り除く"
   (let ((client (gethash ws *ws-clients*)))
+    (when client
+          (maphash
+            (lambda (target _uuid)
+              (let ((bucket (gethash target *subscriptions*)))
+                (when bucket
+                      (remhash ws bucket)
+                      (when (zerop (hash-table-count bucket))
+                            (remhash target *subscriptions*)))))
+            (getf client :subscriptions)))
     (remhash ws *ws-clients*)
-    (maphash
-      (lambda (_target bucket)
-        (remhash ws bucket)
-        (when (zerop (hash-table-count bucket))
-              (remhash _target *subscriptions*)))
-      *subscriptions*)
     (format t "[WS] Closed: ~A~%" ws)))
 
 ;;; ---------------------------
