@@ -80,3 +80,5 @@
 ; (stop-mindmap-server)
 
 ;  (uiop:run-program "clear" :output *standard-output*)
+
+; sudo -u postgres psql
