@@ -1,40 +1,35 @@
 (in-package :websocket-app)
 
+;;; ---------------------------
+;;; グローバル変数
+;;; ---------------------------
 (defvar *http-routes* (make-hash-table :test #'equal))
 (defvar *ws-routes* (make-hash-table :test #'equal))
-(defparameter *ws-clients* (make-hash-table :test 'eq))
+(defparameter *ws-clients* (make-hash-table :test 'eq)) ; ws -> client
+(defparameter *subscriptions* (make-hash-table :test 'equal)) ; target -> (ws -> uuid)
+
+;;; ---------------------------
+;;; HTTP / WS ルーティング
+;;; ---------------------------
 (defvar *my-app*
-        ; (with-cors
         (lambda (env)
           (let* ((path (getf env :path-info))
                  (method (getf env :request-method)))
             (cond
-             ;; OPTIONSリクエスト (CORS preflight)
              ((string= method "OPTIONS")
-               (list 200
-                     '(:content-type "text/plain")
-                     '("OK")))
-
-             ;; トークン認証（有効）
+               (list 200 '(:content-type "text/plain") '("OK")))
              ((not (server-utils:validate-service-token env))
-               (list 401
-                     '(:content-type "text/plain")
-                     '("Unauthorized")))
-
-             ;; HTTPルート
+               (list 401 '(:content-type "text/plain") '("Unauthorized")))
              ((gethash path *http-routes*)
                (funcall (gethash path *http-routes*) env))
-
-             ;; WSルート
              ((gethash path *ws-routes*)
                (funcall (gethash path *ws-routes*) env))
-
-             ;; Not Found
              (t
-               (list 404
-                     '(:content-type "text/plain")
-                     '("Not Found")))))))
+               (list 404 '(:content-type "text/plain") '("Not Found")))))))
 
+;;; ---------------------------
+;;; HTTP / WS ルート定義マクロ
+;;; ---------------------------
 (defmacro defroute-http (path &body body)
   `(setf (gethash ,path *http-routes*)
      (lambda (env) ,@body)))
@@ -43,41 +38,98 @@
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
        (let* ((ws (make-server env))
-              (client-id (gensym "WS-CLIENT-"))
               (client (list
                        :ws ws
                        :subscriptions (make-hash-table :test 'equal))))
+         ;; ws -> client 登録
+         (setf (gethash ws *ws-clients*) client)
 
-         (setf (gethash client-id *ws-clients*) client)
-
+         ;; close ハンドラ
          (on :close ws
              (lambda ()
-               (remhash client-id *ws-clients*)
-               (format t "~&[WS] Closed: ~A~%" client-id)))
+               (ws-close-handler ws)))
 
+         ;; ユーザーハンドラ
          ,@body
 
+         ;; start connection
          (lambda (_responder)
            (start-connection ws))))))
 
-(defun ws-broadcast (message)
-  (maphash
-    (lambda (_id client)
-      (ignore-errors
-        (send (getf client :ws) message)))
-    *ws-clients*))
+;;; ---------------------------
+;;; close handler
+;;; ---------------------------
+(defun ws-close-handler (ws)
+  "WS が閉じたとき client を削除し、subscriptions からも取り除く"
+  (let ((client (gethash ws *ws-clients*)))
+    (remhash ws *ws-clients*)
+    (maphash
+      (lambda (_target bucket)
+        (remhash ws bucket)
+        (when (zerop (hash-table-count bucket))
+              (remhash _target *subscriptions*)))
+      *subscriptions*)
+    (format t "[WS] Closed: ~A~%" ws)))
 
-(defun ws-broadcast-to-map (map-uuid message)
-  (maphash
-    (lambda (_id client)
-      (let* ((subs (getf client :subscriptions))
-             (client-map (and subs (gethash "map" subs))))
-        (when (and client-map
-                   (string= map-uuid client-map))
+;;; ---------------------------
+;;; SUBSCRIBE / UNSUBSCRIBE / BROADCAST
+;;; ---------------------------
+(defun ws-subscribe (ws target uuid)
+  "WS を target の bucket に登録し client に subscriptions を記録"
+  (let* ((client (gethash ws *ws-clients*))
+         (subs (getf client :subscriptions))
+         (bucket (gethash target *subscriptions*)))
+    (unless subs
+      (setf subs (make-hash-table :test 'equal))
+      (setf (getf client :subscriptions) subs))
+    (unless bucket
+      (setf bucket (make-hash-table :test 'eq))
+      (setf (gethash target *subscriptions*) bucket))
+    (setf (gethash ws bucket) uuid)
+    (setf (gethash target subs) uuid)
+    ;; SUBSCRIBED メッセージ
+    (send ws (jonathan:to-json
+              `(:type "SUBSCRIBED"
+                      :target ,target
+                      :uuid ,uuid)))))
+
+(defun ws-unsubscribe (ws target)
+  "WS を target の bucket から削除し client subscriptions も削除"
+  (let* ((client (gethash ws *ws-clients*))
+         (subs (getf client :subscriptions))
+         (bucket (gethash target *subscriptions*)))
+    (when bucket
+          (remhash ws bucket)
+          (when (zerop (hash-table-count bucket))
+                (remhash target *subscriptions*)))
+    (when subs
+          (remhash target subs))
+    ;; UNSUBSCRIBED メッセージ
+    (send ws (jonathan:to-json
+              `(:type "UNSUBSCRIBED"
+                      :target ,target)))))
+
+(defun ws-broadcast-to-target (target message)
+  "target に登録されているクライアントに broadcast"
+  (let ((bucket (gethash target *subscriptions*)))
+    (when bucket
+          (maphash
+            (lambda (ws _uuid)
               (ignore-errors
-                (send (getf client :ws) message)))))
+                (send ws message)))
+            bucket))))
+
+(defun ws-broadcast (message)
+  "全クライアントに broadcast"
+  (maphash
+    (lambda (_ ws-client)
+      (ignore-errors
+        (send (getf ws-client :ws) message)))
     *ws-clients*))
 
+;;; ---------------------------
+;;; WebSocket ハンドラ例
+;;; ---------------------------
 (defroute-ws "/websocket"
              (on :message ws
                  (lambda (msg)
@@ -85,28 +137,19 @@
                        (let* ((data (jonathan:parse msg :as :hash-table))
                               (type (string-upcase (gethash "type" data)))
                               (target (gethash "target" data))
-                              (uuid (gethash "uuid" data))
-                              (subs (getf client :subscriptions)))
+                              (uuid (gethash "uuid" data)))
                          (cond
                           ((string= type "SUBSCRIBE")
-                            (format t "~&[WS SUB] target=~A uuid=~A~%" target uuid)
-                            (setf (gethash target subs) uuid)
-                            (send ws
-                                  (jonathan:to-json
-                                   `(:type "SUBSCRIBED"
-                                           :target ,target
-                                           :uuid ,uuid))))
+                            (format t "[WS SUB] target=~A uuid=~A~%" target uuid)
+                            (ws-subscribe ws target uuid))
 
                           ((string= type "UNSUBSCRIBE")
-                            (remhash target subs)
-                            (send ws
-                                  (jonathan:to-json
-                                   `(:type "UNSUBSCRIBED"
-                                           :target ,target))))))
+                            (format t "[WS UNSUB] target=~A~%" target)
+                            (ws-unsubscribe ws target))))
 
                      (error (e)
-                       (format *error-output*
-                           "[WS ERROR] ~A~%" e))))))
+                       (format *error-output* "[WS ERROR] ~A~%" e))))))
+
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /5t")))

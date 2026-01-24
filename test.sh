@@ -22,7 +22,7 @@ echo "Using token!!!!!!!: $TOKEN"
 
 # for i in $(seq 1 30); do
 #     echo "Creating map $i..."
-    
+
 #     curl -s -X POST "$API_URL" \
 #     -H "Content-Type: application/json" \
 #     -H "x-service-token: $TOKEN" \
@@ -31,7 +31,7 @@ echo "Using token!!!!!!!: $TOKEN"
 #           "title": "manual test map '"$i"'",
 #           "visibility": "public"
 #     }'
-    
+
 #     echo
 # done
 
@@ -92,9 +92,10 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "x-service-token: $TOKEN" \
 
 curl -X POST http://localhost:5000/update-node \
-  -H "Content-Type: application/json" \
-  -H "x-service-token: $TOKEN" \
-  -d '{
+-H "Content-Type: application/json" \
+-H "x-service-token: $TOKEN" \
+-d '{
     "id": 142,
-    "content": "manual test node"
-  }'
+    "content": "manual test node",
+    "parent-id": 141
+}'
