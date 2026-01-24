@@ -97,5 +97,5 @@ curl -X POST http://localhost:5000/update-node \
 -d '{
     "id": 142,
     "content": "manual test node",
-    "parent-id": 141
+    "parent-id": null
 }'
