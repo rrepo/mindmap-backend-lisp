@@ -33,7 +33,7 @@
              (websocket-app:ws-broadcast-to-target
               (format nil "map-~A" map-uuid)
               (jonathan:to-json
-               `(:type "NODE_CREATED"
+               `(:type "NODE-CREATED"
                        :nodeId ,node-id
                        :parentId ,(or parent-id :null)
                        :content ,content
@@ -79,7 +79,7 @@
                    (websocket-app:ws-broadcast-to-target
                     (format nil "map-~A" map-uuid)
                     (jonathan:to-json
-                     `(:type "NODE_UPDATED"
+                     `(:type "NODE-UPDATED"
                              :node-Id ,id
                              :content ,content
                              :parent-Id ,json-parent-id))))))
