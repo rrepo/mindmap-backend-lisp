@@ -76,24 +76,21 @@
 ;;; ---------------------------
 ;;; SUBSCRIBE / UNSUBSCRIBE / BROADCAST
 ;;; ---------------------------
-(defun ws-subscribe (ws target uuid)
-  "WS を target の bucket に登録し client に subscriptions を記録"
-  (let* ((client (gethash ws *ws-clients*))
-         (subs (getf client :subscriptions))
-         (bucket (gethash target *subscriptions*)))
-    (unless subs
-      (setf subs (make-hash-table :test 'equal))
-      (setf (getf client :subscriptions) subs))
-    (unless bucket
-      (setf bucket (make-hash-table :test 'eq))
-      (setf (gethash target *subscriptions*) bucket))
-    (setf (gethash ws bucket) uuid)
-    (setf (gethash target subs) uuid)
-    ;; SUBSCRIBED メッセージ
-    (send ws (jonathan:to-json
-              `(:type "SUBSCRIBED"
-                      :target ,target
-                      :uuid ,uuid)))))
+(defun ws-subscribe (ws target)
+  (when (and target (stringp target))
+        (let* ((client (gethash ws *ws-clients*))
+               (subs (or (getf client :subscriptions)
+                         (setf (getf client :subscriptions)
+                           (make-hash-table :test 'equal))))
+               (bucket (or (gethash target *subscriptions*)
+                           (setf (gethash target *subscriptions*)
+                             (make-hash-table :test 'eq)))))
+          (setf (gethash ws bucket) t)
+          (setf (gethash target subs) t)
+
+          (send ws (jonathan:to-json
+                    `(:type "SUBSCRIBED"
+                            :target ,target))))))
 
 (defun ws-unsubscribe (ws target)
   "WS を target の bucket から削除し client subscriptions も削除"
@@ -138,15 +135,11 @@
                    (handler-case
                        (let* ((data (jonathan:parse msg :as :hash-table))
                               (type (string-upcase (gethash "type" data)))
-                              (target (gethash "target" data))
-                              (uuid (gethash "uuid" data)))
+                              (target (gethash "target" data)))
                          (cond
                           ((string= type "SUBSCRIBE")
-                            (format t "[WS SUB] target=~A uuid=~A~%" target uuid)
-                            (ws-subscribe ws target uuid))
-
+                            (ws-subscribe ws target))
                           ((string= type "UNSUBSCRIBE")
-                            (format t "[WS UNSUB] target=~A~%" target)
                             (ws-unsubscribe ws target))))
 
                      (error (e)
