@@ -63,9 +63,9 @@
                     (format nil "map-~A" map-uuid)
                     (jonathan:to-json
                      `(:type "NODE_UPDATED"
-                             :nodeId ,id
+                             :node-Id ,id
                              :content ,content
-                             :parentId ,json-parent-id))))))
+                             :parent-Id ,json-parent-id))))))
      :success)))
 
 (defun handle-delete-node (env)

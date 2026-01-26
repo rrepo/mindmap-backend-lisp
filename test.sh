@@ -55,7 +55,7 @@ echo "Using token!!!!!!!: $TOKEN"
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
-# curl -X POST http://localhost:5000/get-map-details?id=c6e590f2-1d09-4cd7-a822-112cefa0a5b3 \
+# curl -X POST http://localhost:5000/get-map-details?id=97ac4df6-e3c2-4599-9340-473b7019c372 \
 #   -H "Content-Type: application/json" \
 #   -H "x-service-token: $TOKEN" \
 
@@ -99,3 +99,12 @@ curl -X POST http://localhost:5000/update-node \
     "content": "manual test node",
     "parent-id": null
 }'
+
+# curl -X POST http://localhost:5000/create-node \
+# -H "Content-Type: application/json" \
+# -H "x-service-token: $TOKEN" \
+# -d '{
+#     "id": 142,
+#     "content": "manual test node",
+#     "parent-id": null
+# }'
