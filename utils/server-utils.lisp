@@ -1,6 +1,6 @@
 (defpackage :server-utils
   (:use :cl)
-  (:export validate-service-token with-api-response))
+  (:export validate-service-token with-api-response validate-ws-cookie))
 
 (in-package :server-utils)
 
@@ -33,6 +33,50 @@
                    (when pair (cdr pair)))))
            (t nil))))
     (and token (string= token utils-env:*backend-token-secret*))))
+
+(defun extract-cookie-value (cookie name)
+  "Cookie ヘッダ文字列から name の値を取り出す"
+  (when cookie
+        (let* ((key (concatenate 'string name "="))
+               (start (search key cookie :test #'char-equal)))
+          (when start
+                (let* ((value-start (+ start (length key)))
+                       (end (or (position #\; cookie :start value-start)
+                                (length cookie))))
+                  (subseq cookie value-start end))))))
+
+(defun base64ish-p (s)
+  "Base64 / Base64URL として使えそうな文字列か簡易チェック"
+  (and (stringp s)
+       (> (length s) 0)
+       (every (lambda (c)
+                (or (alphanumericp c)
+                    (find c "+/=_-" :test #'char=)))
+           s)))
+
+(defun validate-ws-cookie (env)
+  "WS 用 cookie 認証。
+cookie の session が *ws-token-secret* と一致すれば T"
+  (let* ((headers (getf env :headers))
+         (cookie
+          (cond
+           ((typep headers 'hash-table)
+             (let ((found nil))
+               (maphash
+                 (lambda (k v)
+                   (when (and (stringp (string k))
+                              (string= (string-downcase (string k)) "cookie"))
+                         (setf found v)))
+                 headers)
+               found))
+           ((listp headers)
+             (or (getf headers :cookie)
+                 (cdr (assoc "cookie" headers :test #'string-equal))))
+           (t nil)))
+         (session (extract-cookie-value cookie "session")))
+    (and session
+         (base64ish-p session)
+         (string= session utils-env:*ws-token-secret*))))
 
 (defmacro with-api-response (result)
   `(let ((res ,result))
