@@ -1,278 +1,34 @@
-(in-package :websocket-app)
+(defpackage :utils-env
+  (:use :cl)
+  (:export :*backend-token-secret* :*ws-token-secret* :load-env))
 
-;;; ---------------------------
-;;; グローバル変数
-;;; ---------------------------
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
-(defparameter *ws-clients* (make-hash-table :test 'eq)) ; ws -> client
-(defparameter *subscriptions* (make-hash-table :test 'equal)) ; target -> (ws -> uuid)
+(in-package :utils-env)
 
-;;; ---------------------------
-;;; HTTP / WS ルーティング
-;;; ---------------------------
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (method (getf env :request-method)))
-            (cond
-             ;; CORS preflight
-             ((string= method "OPTIONS")
-               (list 200 '(:content-type "text/plain") '("OK")))
+(defvar *backend-token-secret* nil)
+(defvar *ws-token-secret* nil)
 
-             ;; ---- WS は先に分岐 ----
-             ((gethash path *ws-routes*)
-               ;; WS 側では cookie 認証を行う
-               (funcall (gethash path *ws-routes*) env))
+;; cl-dotenv を使って環境変数をロードする関数
+;; cl-dotenv を使って環境変数をロードする関数
+;; cl-dotenv を使って環境変数をロードする関数
+(defun load-env ()
+  (format *error-output* "Loading .env file~%")
+  (let ((env-path (merge-pathnames ".env"
+                                   (asdf:system-source-directory
+                                     (asdf:find-system :mindmap)))))
+    (format *error-output* "Reading .env from: ~A~%" env-path)
 
-             ;; ---- HTTP は token 検証 ----
-             ((not (server-utils:validate-service-token env))
-               (list 401 '(:content-type "text/plain") '("Unauthorized")))
+    (let ((env-vars (cl-dotenv:read-env env-path)))
+      (maphash (lambda (key value)
+                 (when (and key value
+                            (not (string= key ""))
+                            (not (string= value "")))
+                       ;; CRやLFを除去
+                       (let ((clean-key (string-trim '(#\Return #\Newline #\Space) key))
+                             (clean-value (string-trim '(#\Return #\Newline #\Space) value)))
+                         (setf (uiop:getenv clean-key) clean-value)
+                         (format *error-output* "Set ~A=[~A]~%" clean-key clean-value))))
+               env-vars)))
 
-             ((gethash path *http-routes*)
-               (funcall (gethash path *http-routes*) env))
-
-             (t
-               (list 404 '(:content-type "text/plain") '("Not Found")))))))
-
-;;; ---------------------------
-;;; HTTP / WS ルート定義マクロ
-;;; ---------------------------
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
-
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (if (not (server-utils:validate-ws-cookie env))
-           (list 401 '(:content-type "text/plain") '("Unauthorized WS"))
-           (let* ((ws (make-server env))
-                  (client (list
-                           :ws ws
-                           :subscriptions (make-hash-table :test 'equal))))
-             (setf (gethash ws *ws-clients*) client)
-
-             (on :close ws
-                 (lambda ()
-                   (ws-close-handler ws)))
-
-             ,@body
-
-             (lambda (_responder)
-               (start-connection ws)))))))
-
-;;; ---------------------------
-;;; close handler
-;;; ---------------------------
-(defun ws-close-handler (ws)
-  (let ((client (gethash ws *ws-clients*)))
-    (when client
-          (maphash
-            (lambda (target _uuid)
-              (let ((bucket (gethash target *subscriptions*)))
-                (when bucket
-                      (remhash ws bucket)
-                      (when (zerop (hash-table-count bucket))
-                            (remhash target *subscriptions*)))))
-            (getf client :subscriptions)))
-    (remhash ws *ws-clients*)
-    (format t "[WS] Closed: ~A~%" ws)))
-
-;;; ---------------------------
-;;; SUBSCRIBE / UNSUBSCRIBE / BROADCAST
-;;; ---------------------------
-(defun ws-subscribe (ws target)
-  (when (and target (stringp target))
-        (let* ((client (gethash ws *ws-clients*))
-               (subs (or (getf client :subscriptions)
-                         (setf (getf client :subscriptions)
-                           (make-hash-table :test 'equal))))
-               (bucket (or (gethash target *subscriptions*)
-                           (setf (gethash target *subscriptions*)
-                             (make-hash-table :test 'eq)))))
-          (setf (gethash ws bucket) t)
-          (setf (gethash target subs) t)
-
-          (send ws (jonathan:to-json
-                    `(:type "SUBSCRIBED"
-                            :target ,target))))))
-
-(defun ws-unsubscribe (ws target)
-  "WS を target の bucket から削除し client subscriptions も削除"
-  (let* ((client (gethash ws *ws-clients*))
-         (subs (getf client :subscriptions))
-         (bucket (gethash target *subscriptions*)))
-    (when bucket
-          (remhash ws bucket)
-          (when (zerop (hash-table-count bucket))
-                (remhash target *subscriptions*)))
-    (when subs
-          (remhash target subs))
-    ;; UNSUBSCRIBED メッセージ
-    (send ws (jonathan:to-json
-              `(:type "UNSUBSCRIBED"
-                      :target ,target)))))
-
-(defun ws-broadcast-to-target (target message)
-  "target に登録されているクライアントに broadcast"
-  (let ((bucket (gethash target *subscriptions*)))
-    (when bucket
-          (maphash
-            (lambda (ws _uuid)
-              (ignore-errors
-                (send ws message)))
-            bucket))))
-
-(defun ws-broadcast (message)
-  "全クライアントに broadcast"
-  (maphash
-    (lambda (_ ws-client)
-      (ignore-errors
-        (send (getf ws-client :ws) message)))
-    *ws-clients*))
-
-;;; ---------------------------
-;;; WebSocket ハンドラ例
-;;; ---------------------------
-(defroute-ws "/websocket"
-             (on :message ws
-                 (lambda (msg)
-                   (handler-case
-                       (let* ((data (jonathan:parse msg :as :hash-table))
-                              (type (string-upcase (gethash "type" data)))
-                              (target (gethash "target" data)))
-                         (cond
-                          ((string= type "SUBSCRIBE")
-                            (ws-subscribe ws target))
-                          ((string= type "UNSUBSCRIBE")
-                            (ws-unsubscribe ws target))))
-
-                     (error (e)
-                       (format *error-output* "[WS ERROR] ~A~%" e))))))
-
-
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /5t")))
-
-(defroute-http "/login"
-               (server-utils:with-api-response (controllers.users:handle-login env)))
-
-(defroute-http "/user"
-               (server-utils:with-api-response (controllers.users:handle-get-user env)))
-
-(defroute-http "/users"
-               (server-utils:with-api-response (controllers.users:handle-get-users env)))
-
-(defroute-http "/all-users"
-               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
-
-(defroute-http "/create-user"
-               (server-utils:with-api-response (controllers.users:handle-create-user env)))
-
-(defroute-http "/update-user"
-               (server-utils:with-api-response (controllers.users:handle-update-user env)))
-
-(defroute-http "/delete-user"
-               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
-
-(defroute-http "/get-map"
-               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
-
-(defroute-http "/all-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
-
-(defroute-http "/get-maps-by-uid"
-               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
-
-(defroute-http "/create-map"
-               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
-
-(defroute-http "/update-map"
-               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
-
-(defroute-http "/delete-map"
-               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
-
-(defroute-http "/count-private-maps"
-               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
-
-(defroute-http "/search-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
-
-(defroute-http "/get-latest-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps env)))
-
-(defroute-http "/all-nodes"
-               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
-
-(defroute-http "/create-node"
-               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
-
-(defroute-http "/update-node"
-               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
-
-(defroute-http "/delete-node"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
-
-(defroute-http "/delete-node-descendants"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
-
-(defroute-http "/get-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
-
-(defroute-http "/get-map-members-by-map-id"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
-
-(defroute-http "/get-map-members-by-user-uid"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
-
-(defroute-http "/all-map-members"
-               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
-
-(defroute-http "/create-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
-
-(defroute-http "/delete-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
-
-(defroute-http "/get-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
-
-(defroute-http "/get-map-invitation-by-token"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
-
-(defroute-http "/get-map-invitation-by-map-uuid"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
-
-(defroute-http "/create-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
-
-(defroute-http "/delete-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
-
-(defroute-http "/get-map-details"
-               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
-
-(defvar *current-server* nil
-        "現在起動中の Mindmap サーバーを保持。")
-
-(defun start-app (&key (port 5000))
-  "サーバーを起動してサーバーオブジェクトを返す。"
-  ;; すでにサーバーがあれば停止してから起動
-  (when *current-server*
-        (stop-app))
-  (format t "Starting Mindmap server on port ~a...~%" port)
-  ;; Clack のサーバーを起動してオブジェクトを保存
-  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
-  *current-server*)
-
-(defun stop-app ()
-  "現在のサーバーを停止する。"
-  (when *current-server*
-        (format t "Stopping Mindmap server...~%")
-        (ignore-errors
-          ;; Clack/Woo 停止関数
-          (clack:stop *current-server*))
-        (setf *current-server* nil)))
+  (setf *backend-token-secret* (uiop:getenv "BACKEND_TOKEN_SECRET"))
+  (setf *ws-token-secret* (uiop:getenv "WS_TOKEN_SECRET"))
+  (format *error-output* "backend token!!!!! [~A]~%" *backend-token-secret*))
