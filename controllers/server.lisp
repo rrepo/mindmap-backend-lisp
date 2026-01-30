@@ -16,14 +16,22 @@
           (let* ((path (getf env :path-info))
                  (method (getf env :request-method)))
             (cond
+             ;; CORS preflight
              ((string= method "OPTIONS")
                (list 200 '(:content-type "text/plain") '("OK")))
+
+             ;; ---- WS は先に分岐 ----
+             ((gethash path *ws-routes*)
+               ;; WS 側では cookie 認証を行う
+               (funcall (gethash path *ws-routes*) env))
+
+             ;; ---- HTTP は token 検証 ----
              ((not (server-utils:validate-service-token env))
                (list 401 '(:content-type "text/plain") '("Unauthorized")))
+
              ((gethash path *http-routes*)
                (funcall (gethash path *http-routes*) env))
-             ((gethash path *ws-routes*)
-               (funcall (gethash path *ws-routes*) env))
+
              (t
                (list 404 '(:content-type "text/plain") '("Not Found")))))))
 
@@ -37,24 +45,22 @@
 (defmacro defroute-ws (path &body body)
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
-       (let* ((ws (make-server env))
-              (client (list
-                       :ws ws
-                       :subscriptions (make-hash-table :test 'equal))))
-         ;; ws -> client 登録
-         (setf (gethash ws *ws-clients*) client)
+       (if (not (server-utils:validate-ws-cookie env))
+           (list 401 '(:content-type "text/plain") '("Unauthorized WS"))
+           (let* ((ws (make-server env))
+                  (client (list
+                           :ws ws
+                           :subscriptions (make-hash-table :test 'equal))))
+             (setf (gethash ws *ws-clients*) client)
 
-         ;; close ハンドラ
-         (on :close ws
-             (lambda ()
-               (ws-close-handler ws)))
+             (on :close ws
+                 (lambda ()
+                   (ws-close-handler ws)))
 
-         ;; ユーザーハンドラ
-         ,@body
+             ,@body
 
-         ;; start connection
-         (lambda (_responder)
-           (start-connection ws))))))
+             (lambda (_responder)
+               (start-connection ws)))))))
 
 ;;; ---------------------------
 ;;; close handler
