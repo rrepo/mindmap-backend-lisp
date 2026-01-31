@@ -45,22 +45,12 @@
 (defmacro defroute-ws (path &body body)
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
-       (if (not (server-utils:validate-ws-cookie env))
-           (list 401 '(:content-type "text/plain") '("Unauthorized WS"))
-           (let* ((ws (make-server env))
-                  (client (list
-                           :ws ws
-                           :subscriptions (make-hash-table :test 'equal))))
-             (setf (gethash ws *ws-clients*) client)
-
-             (on :close ws
-                 (lambda ()
-                   (ws-close-handler ws)))
-
-             ,@body
-
-             (lambda (_responder)
-               (start-connection ws)))))))
+       (let ((ws (make-server env)))
+         ;; WSイベント登録
+         ,@body
+         ;; responder を返す（これが必須）
+         (lambda (_responder)
+           (start-connection ws))))))
 
 ;;; ---------------------------
 ;;; close handler
@@ -151,6 +141,8 @@
                      (error (e)
                        (format *error-output* "[WS ERROR] ~A~%" e))))))
 
+(defroute-http "/ws-auth"
+               (controllers.ws-auth:handle-ws-token-http-cookie env))
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /5t")))
