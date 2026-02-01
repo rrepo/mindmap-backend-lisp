@@ -46,12 +46,26 @@
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
        (let ((ws (make-server env)))
-         ;; WSイベント登録
-         ,@body
-         ;; responder を返す（これが必須）
-         (lambda (_responder)
-           (start-connection ws))))))
+         ;; Cookie認証
+         (let ((cookies (gethash "cookie" (getf env :headers))))
+           (unless (and cookies
+                        (string= (server-utils:get-cookie-value cookies "ws-token")
+                                 utils-env:*ws-token-secret*))
+             ;; 認証失敗: すぐに閉じる
+             (websocket-driver:close-connection ws 1008 "Unauthorized")
+             nil)) ;; <- return-from は使わない
 
+         ;; 接続情報登録
+         (setf (gethash ws *ws-clients*)
+           (list :ws ws :subscriptions (make-hash-table :test 'equal)))
+
+         ;; イベント登録
+         ,@body
+
+         ;; 接続開始とクローズハンドラー設定
+         (lambda (_responder)
+           (start-connection ws
+                             :on-close (lambda () (ws-utils:ws-close-handler ws))))))))
 
 ;;; ---------------------------
 ;;; WebSocket ハンドラ例
