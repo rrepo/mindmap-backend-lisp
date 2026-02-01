@@ -1,11 +1,12 @@
 (defpackage :utils-env
   (:use :cl)
-  (:export :*backend-token-secret* :*ws-token-secret* :load-env))
+  (:export :*backend-token-secret* :*ws-token-secret* :*is-dev* :load-env))
 
 (in-package :utils-env)
 
 (defvar *backend-token-secret* nil)
 (defvar *ws-token-secret* nil)
+(defvar *is-dev* nil)
 
 ;; cl-dotenv を使って環境変数をロードする関数
 ;; cl-dotenv を使って環境変数をロードする関数
@@ -31,4 +32,11 @@
 
   (setf *backend-token-secret* (uiop:getenv "BACKEND_TOKEN_SECRET"))
   (setf *ws-token-secret* (uiop:getenv "WS_TOKEN_SECRET"))
+  (setf *is-dev*
+    (let ((val (uiop:getenv "IS_DEV")))
+      (when val
+            (let ((up (string-upcase val)))
+              (or (string= up "1")
+                  (string= up "T")
+                  (string= up "TRUE"))))))
   (format *error-output* "backend token!!!!! [~A]~%" *backend-token-secret*))

@@ -46,18 +46,20 @@
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
        (let ((ws (make-server env)))
-         ;; Cookie認証（コメントアウト中）
-         #|
-         (let ((cookies (gethash "cookie" (getf env :headers))))
-           (unless (and cookies
-                        (string= (server-utils:get-cookie-value cookies "ws-token")
-                                 utils-env:*ws-token-secret*))
-             ;; 認証失敗: ログ出力してすぐ閉じる
-             (format t "[ws-auth] Unauthorized connection attempt from ~A~%"
-               (getf env :remote-addr))
-             (websocket-driver:close-connection ws 1008 "Unauthorized")
-             nil))
-         |#
+
+         (format *error-output* "!!!!isdev!! [~A]~%" utils-env:*is-dev*)
+
+         ;; Cookie認証（開発環境ではスキップ、本番環境で有効）
+         (unless utils-env:*is-dev*
+           (let ((cookies (gethash "cookie" (getf env :headers))))
+             (unless (and cookies
+                          (string= (server-utils:get-cookie-value cookies "ws-token")
+                                   utils-env:*ws-token-secret*))
+               ;; 認証失敗: ログ出力してすぐ閉じる
+               (format t "[ws-auth] Unauthorized connection attempt from ~A~%"
+                 (getf env :remote-addr))
+               (websocket-driver:close-connection ws 1008 "Unauthorized")
+               nil)))
 
          ;; 接続情報登録
          (setf (gethash ws *ws-clients*)
