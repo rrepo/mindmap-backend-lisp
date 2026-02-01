@@ -46,14 +46,18 @@
   `(setf (gethash ,path *ws-routes*)
      (lambda (env)
        (let ((ws (make-server env)))
-         ;; Cookie認証
+         ;; Cookie認証（コメントアウト中）
+         #|
          (let ((cookies (gethash "cookie" (getf env :headers))))
            (unless (and cookies
                         (string= (server-utils:get-cookie-value cookies "ws-token")
                                  utils-env:*ws-token-secret*))
-             ;; 認証失敗: すぐに閉じる
+             ;; 認証失敗: ログ出力してすぐ閉じる
+             (format t "[ws-auth] Unauthorized connection attempt from ~A~%"
+               (getf env :remote-addr))
              (websocket-driver:close-connection ws 1008 "Unauthorized")
-             nil)) ;; <- return-from は使わない
+             nil))
+         |#
 
          ;; 接続情報登録
          (setf (gethash ws *ws-clients*)
@@ -187,7 +191,6 @@
 
 (defroute-http "/get-map-details"
                (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
 
 (defvar *current-server* nil
         "現在起動中の Mindmap サーバーを保持。")
