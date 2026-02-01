@@ -30,7 +30,7 @@
                    map-id parent-id content uid)))
 
              ;; ② WS broadcast
-             (websocket-app:ws-broadcast-to-target
+             (ws-utils:ws-broadcast-to-target
               (format nil "map-~A" map-uuid)
               (jonathan:to-json
                `(:type "NODE-CREATED"
@@ -76,7 +76,7 @@
              (format *error-output* "!!!mapuuid=~A~%" map-uuid)
              (when map-uuid
                    ;; ③ WSブロードキャスト
-                   (websocket-app:ws-broadcast-to-target
+                   (ws-utils:ws-broadcast-to-target
                     (format nil "map-~A" map-uuid)
                     (jonathan:to-json
                      `(:type "NODE-UPDATED"

@@ -52,94 +52,42 @@
          (lambda (_responder)
            (start-connection ws))))))
 
-;;; ---------------------------
-;;; close handler
-;;; ---------------------------
-(defun ws-close-handler (ws)
-  (let ((client (gethash ws *ws-clients*)))
-    (when client
-          (maphash
-            (lambda (target _uuid)
-              (let ((bucket (gethash target *subscriptions*)))
-                (when bucket
-                      (remhash ws bucket)
-                      (when (zerop (hash-table-count bucket))
-                            (remhash target *subscriptions*)))))
-            (getf client :subscriptions)))
-    (remhash ws *ws-clients*)
-    (format t "[WS] Closed: ~A~%" ws)))
-
-;;; ---------------------------
-;;; SUBSCRIBE / UNSUBSCRIBE / BROADCAST
-;;; ---------------------------
-(defun ws-subscribe (ws target)
-  (when (and target (stringp target))
-        (let* ((client (gethash ws *ws-clients*))
-               (subs (or (getf client :subscriptions)
-                         (setf (getf client :subscriptions)
-                           (make-hash-table :test 'equal))))
-               (bucket (or (gethash target *subscriptions*)
-                           (setf (gethash target *subscriptions*)
-                             (make-hash-table :test 'eq)))))
-          (setf (gethash ws bucket) t)
-          (setf (gethash target subs) t)
-
-          (send ws (jonathan:to-json
-                    `(:type "SUBSCRIBED"
-                            :target ,target))))))
-
-(defun ws-unsubscribe (ws target)
-  "WS を target の bucket から削除し client subscriptions も削除"
-  (let* ((client (gethash ws *ws-clients*))
-         (subs (getf client :subscriptions))
-         (bucket (gethash target *subscriptions*)))
-    (when bucket
-          (remhash ws bucket)
-          (when (zerop (hash-table-count bucket))
-                (remhash target *subscriptions*)))
-    (when subs
-          (remhash target subs))
-    ;; UNSUBSCRIBED メッセージ
-    (send ws (jonathan:to-json
-              `(:type "UNSUBSCRIBED"
-                      :target ,target)))))
-
-(defun ws-broadcast-to-target (target message)
-  "target に登録されているクライアントに broadcast"
-  (let ((bucket (gethash target *subscriptions*)))
-    (when bucket
-          (maphash
-            (lambda (ws _uuid)
-              (ignore-errors
-                (send ws message)))
-            bucket))))
-
-(defun ws-broadcast (message)
-  "全クライアントに broadcast"
-  (maphash
-    (lambda (_ ws-client)
-      (ignore-errors
-        (send (getf ws-client :ws) message)))
-    *ws-clients*))
 
 ;;; ---------------------------
 ;;; WebSocket ハンドラ例
 ;;; ---------------------------
 (defroute-ws "/websocket"
+             ;; --- open ---
+             (on :open ws
+                 (lambda ()
+                   (setf (gethash ws *ws-clients*)
+                     (list :ws ws
+                           :subscriptions (make-hash-table :test 'equal)))
+                   (format t "[WS] OPEN: ~A~%" ws)))
+
+             ;; --- message ---
              (on :message ws
-                 (lambda (msg)
+                 (lambda (msg) ;; ← msg だけ
+                   (format t "[WS] RAW MESSAGE: ~A~%" msg)
                    (handler-case
                        (let* ((data (jonathan:parse msg :as :hash-table))
                               (type (string-upcase (gethash "type" data)))
                               (target (gethash "target" data)))
                          (cond
                           ((string= type "SUBSCRIBE")
-                            (ws-subscribe ws target))
+                            (ws-utils:ws-subscribe ws target))
                           ((string= type "UNSUBSCRIBE")
-                            (ws-unsubscribe ws target))))
-
+                            (ws-utils:ws-unsubscribe ws target))
+                          (t
+                            (format t "[WS] Unknown type: ~A~%" type))))
                      (error (e)
-                       (format *error-output* "[WS ERROR] ~A~%" e))))))
+                       (format *error-output* "[WS ERROR] ~A~%" e)))))
+
+             ;; --- close ---
+             (on :close ws
+                 (lambda () ;; ← 0引数
+                   (ws-utils:ws-close-handler ws))))
+
 
 (defroute-http "/ws-auth"
                (controllers.ws-auth:handle-ws-token-http-cookie env))
