@@ -21,7 +21,8 @@
         (funcall app env))))
 
 (defun reload-dev ()
-  (dolist (file '("utils/utils"
+  (dolist (file '("controllers/controllers-package"
+                  "utils/utils"
                   "utils/verify"
                   "models/initsql"
                   "models/users"
@@ -37,6 +38,7 @@
                   "controllers/map-invitations"
                   "utils/env"
                   "utils/server-utils"
+                  "utils/ws-utils"
                   "controllers/server"))
     (let* ((pathname (asdf:system-relative-pathname "mindmap"
                                                     (format nil "~A.lisp" file)))

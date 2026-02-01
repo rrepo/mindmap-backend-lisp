@@ -14,7 +14,7 @@
                :cl-dotenv)
   :serial t
   :components (
-                (:file "controllers/websocket-package")
+                (:file "controllers/controllers-package")
                 (:file "utils/utils")
                 (:file "utils/verify")
                 (:file "models/initsql")
@@ -32,5 +32,6 @@
                 (:file "utils/env")
                 (:file "controllers/ws-auth")
                 (:file "utils/server-utils")
+                (:file "utils/ws-utils")
                 (:file "controllers/server")
                 (:file "main"))) ;; ← エントリーポイント
