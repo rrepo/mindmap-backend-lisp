@@ -30,7 +30,7 @@
                 (:file "controllers/map-members")
                 (:file "controllers/map-invitations")
                 (:file "utils/env")
-                (:file "controllers/ws-auth")
+                (:file "controllers/ws")
                 (:file "utils/server-utils")
                 (:file "utils/ws-utils")
                 (:file "controllers/server")

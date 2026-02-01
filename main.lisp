@@ -37,6 +37,7 @@
                   "controllers/map-members"
                   "controllers/map-invitations"
                   "utils/env"
+                  "controllers/ws"
                   "utils/server-utils"
                   "utils/ws-utils"
                   "controllers/server"))
