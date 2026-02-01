@@ -7,3 +7,7 @@
 (defpackage :ws-utils
   (:use :cl :jonathan)
   (:export :ws-close-handler :ws-subscribe :ws-unsubscribe :ws-broadcast-to-target :ws-broadcast))
+
+(defpackage :controllers.ws
+  (:use :cl)
+  (:export :handle-ws-token-http-cookie :ws-on-open  :ws-on-message :ws-on-close))

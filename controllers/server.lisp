@@ -57,40 +57,20 @@
 ;;; WebSocket ハンドラ例
 ;;; ---------------------------
 (defroute-ws "/websocket"
-             ;; --- open ---
              (on :open ws
                  (lambda ()
-                   (setf (gethash ws *ws-clients*)
-                     (list :ws ws
-                           :subscriptions (make-hash-table :test 'equal)))
-                   (format t "[WS] OPEN: ~A~%" ws)))
+                   (controllers.ws:ws-on-open ws)))
 
-             ;; --- message ---
              (on :message ws
-                 (lambda (msg) ;; ← msg だけ
-                   (format t "[WS] RAW MESSAGE: ~A~%" msg)
-                   (handler-case
-                       (let* ((data (jonathan:parse msg :as :hash-table))
-                              (type (string-upcase (gethash "type" data)))
-                              (target (gethash "target" data)))
-                         (cond
-                          ((string= type "SUBSCRIBE")
-                            (ws-utils:ws-subscribe ws target))
-                          ((string= type "UNSUBSCRIBE")
-                            (ws-utils:ws-unsubscribe ws target))
-                          (t
-                            (format t "[WS] Unknown type: ~A~%" type))))
-                     (error (e)
-                       (format *error-output* "[WS ERROR] ~A~%" e)))))
+                 (lambda (msg)
+                   (controllers.ws:ws-on-message ws msg)))
 
-             ;; --- close ---
              (on :close ws
-                 (lambda () ;; ← 0引数
-                   (ws-utils:ws-close-handler ws))))
-
+                 (lambda ()
+                   (controllers.ws:ws-on-close ws))))
 
 (defroute-http "/ws-auth"
-               (controllers.ws-auth:handle-ws-token-http-cookie env))
+               (controllers.ws:handle-ws-token-http-cookie env))
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /5t")))
