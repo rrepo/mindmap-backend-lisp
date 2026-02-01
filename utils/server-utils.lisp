@@ -1,6 +1,6 @@
 (defpackage :server-utils
   (:use :cl)
-  (:export validate-service-token with-api-response validate-ws-cookie))
+  (:export validate-service-token with-api-response validate-ws-cookie get-cookie-value))
 
 (in-package :server-utils)
 
@@ -103,3 +103,12 @@ cookie の session が *ws-token-secret* と一致すれば T"
             ("Access-Control-Allow-Headers" . "Content-Type, Authorization"))
           headers)
         body))))
+
+(defun get-cookie-value (cookie-header name)
+  "Cookie ヘッダーから name の値を取り出す"
+  (when cookie-header
+        (some (lambda (pair)
+                (when (string= (string-trim " " (subseq pair 0 (position #\= pair)))
+                               name)
+                      (string-trim " " (subseq pair (+ 1 (position #\= pair))))))
+            (cl-ppcre:split "; " cookie-header))))
