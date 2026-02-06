@@ -1,6 +1,6 @@
 (defpackage :controllers.nodes
   (:use :cl :jonathan)
-  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants))
+  (:export handle-get-all-nodes handle-create-node handle-update-node handle-delete-node handle-delete-node-descendants node-id->map-uuid))
 
 (in-package :controllers.nodes)
 
@@ -17,12 +17,12 @@
           (map-id (getf params :|map-id|))
           (parent-id (getf params :|parent-id|))
           (uid (getf params :|uid|))
-          (content (getf params :|content|)))
+          (content (getf params :|content|))
+          (client-id (getf params :|client-id|)))
 
      (format *error-output*
-         "Create params: map-id=~A, map-uuid=~A, parent-id=~A, uid=~A, content=~A~%"
-       map-id map-uuid parent-id uid content)
-
+         "Create params: map-id=~A, map-uuid=~A, parent-id=~A, uid=~A, content=~A, client-id=~A~%"
+       map-id map-uuid parent-id uid content client-id)
      (when (and map-id map-uuid content uid)
            ;; ① DB create（node-id を返す）
            (let ((node-id
@@ -37,7 +37,8 @@
                        :nodeId ,node-id
                        :parentId ,(or parent-id :null)
                        :content ,content
-                       :uid ,uid)))
+                       :uid ,uid
+                       :clientId ,client-id)))
              :success)))))
 
 (defun node-id->map-uuid (node-id)
