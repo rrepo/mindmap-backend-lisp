@@ -46,16 +46,16 @@
   (cond
    ((string= type "SUBSCRIBE")
      (handle-ws-subscribe ws data))
-
    ((string= type "UNSUBSCRIBE")
      (handle-ws-unsubscribe ws data))
-
    ((string= type "NODE-UPDATE")
      (handle-ws-node-update ws data))
-
+   ((string= type "NODE-CREATE")
+     (handle-ws-node-create ws data))
+   ((string= type "NODE-DELETE")
+     (handle-ws-node-delete ws data))
    (t
-     (format *error-output*
-         "[WS] Unknown type: ~A~%" type))))
+     (format *error-output* "[WS] Unknown type: ~A~%" type))))
 
 (defun handle-ws-subscribe (ws data)
   (let ((target (gethash "target" data)))
@@ -67,12 +67,40 @@
     (when target
           (ws-utils:ws-unsubscribe ws target))))
 
+(defun handle-ws-node-create (ws data)
+  (let* ((map-uuid (gethash "map-uuid" data))
+         (map-id (gethash "map-id" data))
+         (parent-id (gethash "parent-id" data))
+         (uid (gethash "uid" data))
+         (content (gethash "content" data))
+         (client-id (gethash "client-id" data)))
+
+    (format *error-output*
+        "[WS] Create params: map-id=~A, map-uuid=~A, parent-id=~A, uid=~A, content=~A, client-id=~A~%"
+      map-id map-uuid parent-id uid content client-id)
+
+    (when (and map-id map-uuid content uid)
+          ;; ① DB create
+          (let ((node-id (models.nodes:create-node map-id parent-id content uid)))
+            ;; ② WS broadcast
+            (ws-utils:ws-broadcast-to-target
+             (format nil "map-~A" map-uuid)
+             (jonathan:to-json
+              `(:type "NODE-CREATED"
+                      :node-Id ,node-id
+                      :parent-Id ,(or parent-id :null)
+                      :content ,content
+                      :uid ,uid
+                      :client-Id ,client-id)))))))
+
+
 (defun handle-ws-node-update (ws data)
   (let* ((id (gethash "node-id" data))
          ;; WS でも「送られたかどうか」を見る
          (has-parent-id (nth-value 1 (gethash "parentId" data)))
          (parent-id (gethash "parentId" data))
          (content (gethash "content" data))
+         (client-id (gethash "client-id" data))
          ;; REST と同じ JSON 用 parent-id
          (json-parent-id
           (if parent-id
@@ -80,8 +108,8 @@
               :null)))
 
     (format *error-output*
-        "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
-      id has-parent-id parent-id content)
+        "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A, client-id=~A~%"
+      id has-parent-id parent-id content client-id)
 
     (when id
           ;; ① DB更新（REST と同じ）
@@ -101,8 +129,30 @@
                     `(:type "NODE-UPDATED"
                             :node-Id ,id
                             :content ,content
-                            :parent-Id ,json-parent-id))))))))
+                            :parent-Id ,json-parent-id
+                            :client-Id ,client-id))))))))
 
+(defun handle-ws-node-delete (ws data)
+  (let* ((id (gethash "node-id" data))
+         (client-id (gethash "client-id" data))
+         (map-uuid (controllers.nodes:node-id->map-uuid id)))
+
+    (format *error-output*
+        "[WS] Delete params: node-id=~A, client-id=~A, map-uuid=~A~%"
+      id client-id map-uuid)
+
+    (when id
+          ;; ① DB削除（論理削除でも物理削除でも可）
+          (models.nodes:delete-node id)
+
+          ;; ② map-uuid があれば WS broadcast
+          (when map-uuid
+                (ws-utils:ws-broadcast-to-target
+                 (format nil "map-~A" map-uuid)
+                 (jonathan:to-json
+                  `(:type "NODE-DELETED"
+                          :node-Id ,id
+                          :client-Id ,client-id)))))))
 
 (defun ws-on-close (ws)
   (ws-utils:ws-close-handler ws))
