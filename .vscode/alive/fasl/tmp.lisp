@@ -1,217 +1,108 @@
-(in-package :websocket-app)
+(in-package :controllers.ws)
 
-;;; ---------------------------
-;;; グローバル変数
-;;; ---------------------------
-(defvar *http-routes* (make-hash-table :test #'equal))
-(defvar *ws-routes* (make-hash-table :test #'equal))
-(defparameter *ws-clients* (make-hash-table :test 'eq)) ; ws -> client
-(defparameter *subscriptions* (make-hash-table :test 'equal)) ; target -> (ws -> uuid)
+(defun handle-ws-token-http-cookie (env)
+  (let* ((token utils-env:*ws-token-secret*)
+         (cookie (format nil
+                     "ws-token=~a; HttpOnly; Path=/; SameSite=Lax"
+                   token))
+         (body (babel:string-to-octets "OK" :encoding :utf-8)))
+    ;; logs
+    (format t "[ws-auth] issue ws-token cookie~%")
+    (format t "[ws-auth] token=~a~%" token)
+    (format t "[ws-auth] Set-Cookie=~a~%" cookie)
+    (finish-output)
 
-;;; ---------------------------
-;;; HTTP / WS ルーティング
-;;; ---------------------------
-(defvar *my-app*
-        (lambda (env)
-          (let* ((path (getf env :path-info))
-                 (method (getf env :request-method)))
-            (cond
-             ;; CORS preflight
-             ((string= method "OPTIONS")
-               (list 200 '(:content-type "text/plain") '("OK")))
+    `(200
+      (:headers (("Content-Type" . "text/plain")
+                 ("Set-Cookie" . ,cookie)))
+      ,body)))
 
-             ;; ---- WS は先に分岐 ----
-             ((gethash path *ws-routes*)
-               ;; WS 側では cookie 認証を行う
-               (funcall (gethash path *ws-routes*) env))
 
-             ;; ---- HTTP は token 検証 ----
-             ((not (server-utils:validate-service-token env))
-               (list 401 '(:content-type "text/plain") '("Unauthorized")))
+; (let ((cookie (format nil
+;   "ws-token=~a; HttpOnly; Secure; Path=/; SameSite=Lax"
+;   token)))
 
-             ((gethash path *http-routes*)
-               (funcall (gethash path *http-routes*) env))
+(defun ws-on-open (ws)
+  (setf (gethash ws websocket-app:*ws-clients*)
+    (list :ws ws
+          :subscriptions (make-hash-table :test 'equal)))
+  (format t "[WS] OPEN: ~A~%" ws))
 
-             (t
-               (list 404 '(:content-type "text/plain") '("Not Found")))))))
 
-;;; ---------------------------
-;;; HTTP / WS ルート定義マクロ
-;;; ---------------------------
-(defmacro defroute-http (path &body body)
-  `(setf (gethash ,path *http-routes*)
-     (lambda (env) ,@body)))
+(defun ws-on-message (ws msg)
+  (format t "[WS] RAW MESSAGE: ~A~%" msg)
+  (handler-case
+      (let* ((text (if (stringp msg)
+                       msg
+                       (babel:octets-to-string msg)))
+             (data (jonathan:parse text :as :hash-table))
+             (type (string-upcase (gethash "type" data))))
+        (dispatch-ws-message ws type data))
+    (error (e)
+      (format *error-output* "[WS ERROR] ~A~%" e))))
 
-(defmacro defroute-ws (path &body body)
-  `(setf (gethash ,path *ws-routes*)
-     (lambda (env)
-       (let ((ws (make-server env)))
 
-         (format *error-output* "!!!!isdev!! [~A]~%" utils-env:*is-dev*)
+(defun dispatch-ws-message (ws type data)
+  (cond
+   ((string= type "SUBSCRIBE")
+     (handle-ws-subscribe ws data))
 
-         ;; Cookie認証（開発環境ではスキップ、本番環境で有効）
-         (unless utils-env:*is-dev*
-           (let ((cookies (gethash "cookie" (getf env :headers))))
-             (unless (and cookies
-                          (string= (server-utils:get-cookie-value cookies "ws-token")
-                                   utils-env:*ws-token-secret*))
-               ;; 認証失敗: ログ出力してすぐ閉じる
-               (format t "[ws-auth] Unauthorized connection attempt from ~A~%"
-                 (getf env :remote-addr))
-               (websocket-driver:close-connection ws 1008 "Unauthorized")
-               nil)))
+   ((string= type "UNSUBSCRIBE")
+     (handle-ws-unsubscribe ws data))
 
-         ;; 接続情報登録
-         (setf (gethash ws *ws-clients*)
-           (list :ws ws :subscriptions (make-hash-table :test 'equal)))
+   ((string= type "NODE-UPDATE")
+     (handle-ws-node-update ws data))
 
-         ;; イベント登録
-         ,@body
+   (t
+     (format *error-output*
+         "[WS] Unknown type: ~A~%" type))))
 
-         ;; 接続開始とクローズハンドラー設定
-         (lambda (_responder)
-           (start-connection ws
-                             :on-close (lambda () (ws-utils:ws-close-handler ws))))))))
+(defun handle-ws-subscribe (ws data)
+  (let ((target (gethash "target" data)))
+    (when target
+          (ws-utils:ws-subscribe ws target))))
 
-;;; ---------------------------
-;;; WebSocket ハンドラ例
-;;; ---------------------------
-(defroute-ws "/websocket"
-             (on :open ws
-                 (lambda ()
-                   (controllers.ws:ws-on-open ws)))
+(defun handle-ws-unsubscribe (ws data)
+  (let ((target (gethash "target" data)))
+    (when target
+          (ws-utils:ws-unsubscribe ws target))))
 
-             (on :message ws
-                 (lambda (msg)
-                   (controllers.ws:ws-on-message ws msg)))
+(defun handle-ws-node-update (ws data)
+  (let* ((id (gethash "node-id" data))
+         ;; WS でも「送られたかどうか」を見る
+         (has-parent-id (nth-value 1 (gethash "parentId" data)))
+         (parent-id (gethash "parentId" data))
+         (content (gethash "content" data))
+         ;; REST と同じ JSON 用 parent-id
+         (json-parent-id
+          (if parent-id
+              parent-id
+              :null)))
 
-             (on :close ws
-                 (lambda ()
-                   (controllers.ws:ws-on-close ws))))
+    (format *error-output*
+        "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A~%"
+      id has-parent-id parent-id content)
 
-(defroute-http "/ws-auth"
-               (controllers.ws:handle-ws-token-http-cookie env))
+    (when id
+          ;; ① DB更新（REST と同じ）
+          (models.nodes:update-node
+           id
+           :content content
+           :parent-id parent-id
+           :parent-id-specified-p has-parent-id)
 
-(defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /5t")))
+          ;; ② map-uuid 特定
+          (let ((map-uuid (controllers.nodes:node-id->map-uuid id)))
+            (when map-uuid
+                  ;; ③ WSブロードキャスト
+                  (ws-utils:ws-broadcast-to-target
+                   (format nil "map-~A" map-uuid)
+                   (jonathan:to-json
+                    `(:type "NODE-UPDATED"
+                            :node-Id ,id
+                            :content ,content
+                            :parent-Id ,json-parent-id))))))))
 
-(defroute-http "/login"
-               (server-utils:with-api-response (controllers.users:handle-login env)))
 
-(defroute-http "/user"
-               (server-utils:with-api-response (controllers.users:handle-get-user env)))
-
-(defroute-http "/users"
-               (server-utils:with-api-response (controllers.users:handle-get-users env)))
-
-(defroute-http "/all-users"
-               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
-
-(defroute-http "/create-user"
-               (server-utils:with-api-response (controllers.users:handle-create-user env)))
-
-(defroute-http "/update-user"
-               (server-utils:with-api-response (controllers.users:handle-update-user env)))
-
-(defroute-http "/delete-user"
-               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
-
-(defroute-http "/get-map"
-               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
-
-(defroute-http "/all-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
-
-(defroute-http "/get-maps-by-uid"
-               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
-
-(defroute-http "/create-map"
-               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
-
-(defroute-http "/update-map"
-               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
-
-(defroute-http "/delete-map"
-               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
-
-(defroute-http "/count-private-maps"
-               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
-
-(defroute-http "/search-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
-
-(defroute-http "/get-latest-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps env)))
-
-(defroute-http "/all-nodes"
-               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
-
-(defroute-http "/create-node"
-               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
-
-(defroute-http "/update-node"
-               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
-
-(defroute-http "/delete-node"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
-
-(defroute-http "/delete-node-descendants"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
-
-(defroute-http "/get-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
-
-(defroute-http "/get-map-members-by-map-id"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
-
-(defroute-http "/get-map-members-by-user-uid"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
-
-(defroute-http "/all-map-members"
-               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
-
-(defroute-http "/create-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
-
-(defroute-http "/delete-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
-
-(defroute-http "/get-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
-
-(defroute-http "/get-map-invitation-by-token"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
-
-(defroute-http "/get-map-invitation-by-map-uuid"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
-
-(defroute-http "/create-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
-
-(defroute-http "/delete-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
-
-(defroute-http "/get-map-details"
-               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
-
-(defvar *current-server* nil
-        "現在起動中の Mindmap サーバーを保持。")
-
-(defun start-app (&key (port 5000))
-  "サーバーを起動してサーバーオブジェクトを返す。"
-  ;; すでにサーバーがあれば停止してから起動
-  (when *current-server*
-        (stop-app))
-  (format t "Starting Mindmap server on port ~a...~%" port)
-  ;; Clack のサーバーを起動してオブジェクトを保存
-  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
-  *current-server*)
-
-(defun stop-app ()
-  "現在のサーバーを停止する。"
-  (when *current-server*
-        (format t "Stopping Mindmap server...~%")
-        (ignore-errors
-          ;; Clack/Woo 停止関数
-          (clack:stop *current-server*))
-        (setf *current-server* nil)))
+(defun ws-on-close (ws)
+  (ws-utils:ws-close-handler ws))

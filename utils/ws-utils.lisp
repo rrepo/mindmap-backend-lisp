@@ -14,7 +14,7 @@
                       (when (zerop (hash-table-count bucket))
                             (remhash target websocket-app:*subscriptions*)))))
             (getf client :subscriptions)))
-    (remhash ws websocket-app:*ws-clients*)
+  (remhash ws websocket-app:*ws-clients*)
     (format t "[WS] Closed: ~A~%" ws)))
 
 ;;; ---------------------------
