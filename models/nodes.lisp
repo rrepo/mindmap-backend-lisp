@@ -46,21 +46,24 @@
   (cond
    ;; content + parent-id 両方更新
    ((and content parent-id-specified-p)
-     (postmodern:execute
-      "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3"
-      content (if parent-id parent-id :null) id))
+     (postmodern:query
+      "UPDATE nodes SET content = $1, parent_id = $2 WHERE id = $3 RETURNING *"
+      content (if parent-id parent-id :null) id
+      :plist))
 
    ;; content のみ更新
    (content
-     (postmodern:execute
-      "UPDATE nodes SET content = $1 WHERE id = $2"
-      content id))
+     (postmodern:query
+      "UPDATE nodes SET content = $1 WHERE id = $2 RETURNING *"
+      content id
+      :plist))
 
    ;; parent-id のみ更新（NULL 含む）
    (parent-id-specified-p
-     (postmodern:execute
-      "UPDATE nodes SET parent_id = $1 WHERE id = $2"
-      (if parent-id parent-id :null) id))
+     (postmodern:query
+      "UPDATE nodes SET parent_id = $1 WHERE id = $2 RETURNING *"
+      (if parent-id parent-id :null) id
+      :plist))
 
    ;; 何も更新しない
    (t
