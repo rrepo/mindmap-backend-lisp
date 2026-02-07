@@ -97,8 +97,8 @@
 (defun handle-ws-node-update (ws data)
   (let* ((id (gethash "node-id" data))
          ;; WS でも「送られたかどうか」を見る
-         (has-parent-id (nth-value 1 (gethash "parentId" data)))
-         (parent-id (gethash "parentId" data))
+         (has-parent-id (nth-value 1 (gethash "parent-id" data)))
+         (parent-id (gethash "parent-id" data))
          (content (gethash "content" data))
          (client-id (gethash "client-id" data))
          ;; REST と同じ JSON 用 parent-id
@@ -107,30 +107,37 @@
               parent-id
               :null)))
 
-    (format *error-output*
-        "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A, client-id=~A~%"
-      id has-parent-id parent-id content client-id)
+    ; (format *error-output*
+    ;     "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A, client-id=~A~%"
+    ;   id has-parent-id parent-id content client-id)
 
     (when id
           ;; ① DB更新（REST と同じ）
-          (models.nodes:update-node
-           id
-           :content content
-           :parent-id parent-id
-           :parent-id-specified-p has-parent-id)
+          (let ((updated-node (models.nodes:update-node
+                               id
+                               :content content
+                               :parent-id parent-id
+                               :parent-id-specified-p has-parent-id)))
 
-          ;; ② map-uuid 特定
-          (let ((map-uuid (controllers.nodes:node-id->map-uuid id)))
-            (when map-uuid
-                  ;; ③ WSブロードキャスト
-                  (ws-utils:ws-broadcast-to-target
-                   (format nil "map-~A" map-uuid)
-                   (jonathan:to-json
-                    `(:type "NODE-UPDATED"
-                            :node-Id ,id
-                            :content ,content
-                            :parent-Id ,json-parent-id
-                            :client-Id ,client-id))))))))
+            ;; 返り値を表示
+            (format *error-output* "[WS] Updated node result: ~A~%" updated-node)
+
+            ;; ② map-uuid 特定
+            (let ((map-uuid (controllers.nodes:node-id->map-uuid id)))
+              (when map-uuid
+                    ;; updated-node から値を取得
+                    (let ((db-id (getf updated-node :id))
+                          (db-content (getf updated-node :content))
+                          (db-parent-id (getf updated-node :parent-id)))
+                      ;; ③ WSブロードキャスト
+                      (ws-utils:ws-broadcast-to-target
+                       (format nil "map-~A" map-uuid)
+                       (jonathan:to-json
+                        `(:type "NODE-UPDATED"
+                                :node-Id ,db-id
+                                :content ,db-content
+                                :parent-Id ,(if db-parent-id db-parent-id :null)
+                                :client-Id ,client-id))))))))))
 
 (defun handle-ws-node-delete (ws data)
   (let* ((id (gethash "node-id" data))
