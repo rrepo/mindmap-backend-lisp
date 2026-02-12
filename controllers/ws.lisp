@@ -1,9 +1,10 @@
 (in-package :controllers.ws)
 
 (defun handle-ws-token-http-cookie (env)
+  (format t "[ws-auth] Handling /ws-auth request~%")
   (let* ((token utils-env:*ws-token-secret*)
          (cookie (format nil
-                     "ws-token=~a; HttpOnly; Path=/; SameSite=Lax"
+                     "ws-token=~a; HttpOnly; Secure; Path=/; SameSite=Lax"
                    token))
          (body (babel:string-to-octets "OK" :encoding :utf-8)))
     ;; logs
@@ -12,11 +13,10 @@
     (format t "[ws-auth] Set-Cookie=~a~%" cookie)
     (finish-output)
 
-    `(200
-      (:headers (("Content-Type" . "text/plain")
-                 ("Set-Cookie" . ,cookie)))
-      ,body)))
-
+    (list 200
+          (list :content-type "text/plain"
+                :set-cookie cookie)
+          (list "OK"))))
 
 ; (let ((cookie (format nil
 ;   "ws-token=~a; HttpOnly; Secure; Path=/; SameSite=Lax"

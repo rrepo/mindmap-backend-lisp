@@ -55,8 +55,6 @@
            s)))
 
 (defun validate-ws-cookie (env)
-  "WS 用 cookie 認証。
-cookie の session が *ws-token-secret* と一致すれば T"
   (let* ((headers (getf env :headers))
          (cookie
           (cond
@@ -64,8 +62,7 @@ cookie の session が *ws-token-secret* と一致すれば T"
              (let ((found nil))
                (maphash
                  (lambda (k v)
-                   (when (and (stringp (string k))
-                              (string= (string-downcase (string k)) "cookie"))
+                   (when (string-equal (string-downcase (string k)) "cookie")
                          (setf found v)))
                  headers)
                found))
@@ -73,10 +70,14 @@ cookie の session が *ws-token-secret* と一致すれば T"
              (or (getf headers :cookie)
                  (cdr (assoc "cookie" headers :test #'string-equal))))
            (t nil)))
-         (session (extract-cookie-value cookie "session")))
-    (and session
-         (base64ish-p session)
-         (string= session utils-env:*ws-token-secret*))))
+         ;; ★ ここを修正
+         (token (extract-cookie-value cookie "ws-token")))
+    (format t "[ws-auth] raw Cookie header = ~a~%" cookie)
+    (format t "[ws-auth] headers = ~s~%" headers)
+    (and token
+         (base64ish-p token)
+         (string= token utils-env:*ws-token-secret*))))
+
 
 (defmacro with-api-response (result)
   `(let ((res ,result))
