@@ -2,7 +2,7 @@
 
 (defpackage :websocket-app
   (:use :cl :clack :websocket-driver :cl-dotenv)
-  (:export :start-app :*my-app* :*ws-clients* :*subscriptions* :stop-app :ws-broadcast-to-target))
+  (:export :start-app :*my-app* :*ws-clients* :*subscriptions* :*ws-sessions* :*user-sessions* :stop-app :ws-broadcast-to-target))
 
 (defpackage :ws-utils
   (:use :cl :jonathan)
@@ -10,4 +10,4 @@
 
 (defpackage :controllers.ws
   (:use :cl)
-  (:export :handle-ws-token-http-cookie :ws-on-open  :ws-on-message :ws-on-close))
+  (:export :handle-ws-token-http-cookie :handle-ws-token :ws-on-open :ws-on-message :ws-on-close))

@@ -7,6 +7,8 @@
 (defvar *ws-routes* (make-hash-table :test #'equal))
 (defparameter *ws-clients* (make-hash-table :test 'eq)) ; ws -> client
 (defparameter *subscriptions* (make-hash-table :test 'equal)) ; target -> (ws -> uuid)
+(defparameter *ws-sessions* (make-hash-table :test 'equal)) ; token -> session
+(defparameter *user-sessions* (make-hash-table :test 'equal)) ; uid -> token
 
 ;;; ---------------------------
 ;;; HTTP / WS ルーティング
@@ -56,6 +58,7 @@
          (unless utils-env:*is-dev*
            (let ((cookies (gethash "cookie" (getf env :headers))))
              (unless (and cookies
+                          (format *error-output* "Checking WS auth cookie: ~A~%" (server-utils:get-cookie-value cookies "auth_session"))
                           (string= (server-utils:get-cookie-value cookies "ws-token")
                                    utils-env:*ws-token-secret*))
                ;; 認証失敗: ログ出力してすぐ閉じる
@@ -94,6 +97,9 @@
 
 (defroute-http "/ws-auth"
                (controllers.ws:handle-ws-token-http-cookie env))
+
+(defroute-http "/ws-token"
+               (server-utils:with-api-response(controllers.ws:handle-ws-token env)))
 
 (defroute-http "/"
                '(200 (:content-type "text/plain") ("Hello from /5t")))

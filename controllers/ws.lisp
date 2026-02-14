@@ -18,6 +18,35 @@
                 :set-cookie cookie)
           (list "OK"))))
 
+(defun handle-ws-token (env)
+  (utils:with-invalid
+   (let* ((params (utils:extract-json-params env))
+          (uid (getf params :|uid|)))
+
+     (format *error-output* "[ws-token] Received request with uid: ~A~%" uid)
+
+     (unless uid
+       (return-from handle-ws-token :invalid))
+
+     ;; 1. トークン生成
+     (let ((token (utils:uuid-string)))
+
+       ;; 2. 既存トークン削除
+       (let ((old-token (gethash uid websocket-app:*user-sessions*)))
+         (when old-token
+               (remhash old-token websocket-app:*ws-sessions*)))
+
+       ;; 3. 保存
+       (setf (gethash token websocket-app:*ws-sessions*)
+         (list :uid uid
+               :created-at (get-universal-time)
+               :ip (getf env :remote-addr)))
+
+       (setf (gethash uid websocket-app:*user-sessions*) token)
+
+       ;; 4. plistで返す
+       (list :wsToken token)))))
+
 ; (let ((cookie (format nil
 ;   "ws-token=~a; HttpOnly; Secure; Path=/; SameSite=Lax"
 ;   token)))
