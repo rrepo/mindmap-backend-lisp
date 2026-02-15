@@ -1,6 +1,11 @@
 (in-package :controllers.ws)
 
+(in-package :controllers.ws)
+
+(defparameter *ws-token-ttl* 3600) ; 1時間 = 3600秒
+
 (defun handle-ws-token (env)
+  "WSトークンを生成し、1時間で期限切れになるよう管理"
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
           (uid (getf params :|uid|)))
@@ -10,23 +15,36 @@
      (unless uid
        (return-from handle-ws-token :invalid))
 
-     ;; 1. トークン生成
-     (let ((token (utils:uuid-string)))
+     ;; 古いトークンを掃除
+     (let ((old-token (gethash uid websocket-app:*user-sessions*)))
+       (when old-token
+             (remhash old-token websocket-app:*ws-sessions*)))
 
-       ;; 2. 既存トークン削除
-       (let ((old-token (gethash uid websocket-app:*user-sessions*)))
-         (when old-token
-               (remhash old-token websocket-app:*ws-sessions*)))
-
-       ;; 3. 保存
+     ;; 新しいトークン生成
+     (let ((token (utils:uuid-string))
+           (now (get-universal-time)))
+       ;; 保存
        (setf (gethash token websocket-app:*ws-sessions*)
          (list :uid uid
-               :created-at (get-universal-time)
+               :created-at now
                :ip (getf env :remote-addr)))
 
        (setf (gethash uid websocket-app:*user-sessions*) token)
 
-       ;; 4. plistで返す
+       ;; 有効期限チェックを簡単に行うためのヘルパーを作っておく
+       (flet ((valid-token-p (tok)
+                             (let ((sess (gethash tok websocket-app:*ws-sessions*)))
+                               (and sess
+                                    (< (- (get-universal-time) (getf sess :created-at))
+                                       *ws-token-ttl*)))))
+         ;; 古いトークンをチェックして削除
+         (maphash (lambda (tok sess)
+                    (unless (valid-token-p tok)
+                      (remhash tok websocket-app:*ws-sessions*)
+                      (remhash (getf sess :uid) websocket-app:*user-sessions*)))
+                  websocket-app:*ws-sessions*))
+
+       ;; 返却
        (list :wsToken token)))))
 
 ; (let ((cookie (format nil
