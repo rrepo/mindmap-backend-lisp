@@ -10,4 +10,4 @@
 
 (defpackage :controllers.ws
   (:use :cl)
-  (:export :handle-ws-token-http-cookie :handle-ws-token :ws-on-open :ws-on-message :ws-on-close))
+  (:export :handle-ws-token :ws-on-open :ws-on-message :ws-on-close))
