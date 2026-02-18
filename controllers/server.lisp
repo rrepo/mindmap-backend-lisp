@@ -52,74 +52,53 @@
      (lambda (env)
        (block ws-auth-block
          (let ((ws (make-server env)))
-
            (format *error-output* "!!!!isdev!! [~A]~%" utils-env:*is-dev*)
-
-           ;; Cookie認証（開発環境ではスキップ、本番環境で有効）
-           (unless utils-env:*is-dev*
-             (let* ((cookies (gethash "cookie" (getf env :headers)))
-                    (ws-token (when cookies
-                                    (server-utils:get-cookie-value cookies "ws-token")))
-                    (session (when ws-token
-                                   (gethash ws-token *ws-sessions*))))
-
-               ;; トークンが存在しない、またはセッションが見つからない場合は拒否
-               (unless (and ws-token session)
-                 (format *error-output* "[ws-auth] No valid session found for token: ~A~%" ws-token)
-                 (websocket-driver:close-connection ws 1008 "Unauthorized")
+           ;; Cookie認証
+           (let* ((cookies (gethash "cookie" (getf env :headers)))
+                  (ws-token (when cookies (server-utils:get-cookie-value cookies "ws-token")))
+                  (session (when ws-token (gethash ws-token *ws-sessions*))))
+             ;; トークンが存在しない、またはセッションが見つからない場合は拒否
+             (unless (and ws-token session)
+               (format *error-output* "[ws-auth] No valid session found for token: ~A~%" ws-token)
+               (websocket-driver:close-connection ws 1008 "Unauthorized")
+               (return-from ws-auth-block nil))
+             ;; セッション情報の検証
+             (let ((uid (getf session :uid))
+                   (created-at (getf session :created-at))
+                   (session-ip (getf session :ip))
+                   (current-ip (getf env :remote-addr)))
+               ;; UIDの確認
+               (unless uid
+                 (format *error-output* "[ws-auth] Session has no uid~%")
+                 (websocket-driver:close-connection ws 1008 "Invalid session")
                  (return-from ws-auth-block nil))
-
-               ;; セッション情報の検証
-               (let ((uid (getf session :uid))
-                     (created-at (getf session :created-at))
-                     (session-ip (getf session :ip))
-                     (current-ip (getf env :remote-addr)))
-
-                 ;; UIDの確認
-                 (unless uid
-                   (format *error-output* "[ws-auth] Session has no uid~%")
-                   (websocket-driver:close-connection ws 1008 "Invalid session")
-                   (return-from ws-auth-block nil))
-
-                 ;; セッションの有効期限チェック（例: 24時間）
-                 (let ((age (- (get-universal-time) created-at)))
-                   (when (> age 86400) ; 24時間 = 86400秒
-                         (format *error-output* "[ws-auth] Session expired for uid ~A (age: ~A seconds)~%"
-                           uid age)
-                         ;; 期限切れセッションを削除
-                         (remhash ws-token *ws-sessions*)
-                         (remhash uid *user-sessions*)
-                         (websocket-driver:close-connection ws 1008 "Session expired")
-                         (return-from ws-auth-block nil)))
-
-                 ;; IPアドレスの検証（オプション - 厳密にする場合）
-                 ;; (unless (string= session-ip current-ip)
-                 ;;   (format *error-output* "[ws-auth] IP mismatch for uid ~A: ~A vs ~A~%" 
-                 ;;           uid session-ip current-ip)
-                 ;;   (websocket-driver:close-connection ws 1008 "IP mismatch")
-                 ;;   (return-from ws-auth-block nil))
-
-                 ;; user-sessionsとの整合性チェック
-                 (let ((user-token (gethash uid *user-sessions*)))
-                   (unless (string= ws-token user-token)
-                     (format *error-output* "[ws-auth] Token mismatch for uid ~A~%" uid)
-                     (websocket-driver:close-connection ws 1008 "Token mismatch")
-                     (return-from ws-auth-block nil)))
-
-                 (format *error-output* "[ws-auth] Authorized connection for uid ~A from ~A~%"
-                   uid current-ip))))
-
+               ;; セッションの有効期限チェック（例: 24時間）
+               (let ((age (- (get-universal-time) created-at)))
+                 (when (> age 86400) ; 24時間 = 86400秒
+                       (format *error-output* "[ws-auth] Session expired for uid ~A (age: ~A seconds)~%" uid age)
+                       (remhash ws-token *ws-sessions*)
+                       (remhash uid *user-sessions*)
+                       (websocket-driver:close-connection ws 1008 "Session expired")
+                       (return-from ws-auth-block nil)))
+               ;; IPアドレスの検証（オプション）
+               ;; (unless (string= session-ip current-ip) ...)
+               ;; user-sessionsとの整合性チェック
+               (let ((user-token (gethash uid *user-sessions*)))
+                 (unless (string= ws-token user-token)
+                   (format *error-output* "[ws-auth] Token mismatch for uid ~A~%" uid)
+                   (websocket-driver:close-connection ws 1008 "Token mismatch")
+                   (return-from ws-auth-block nil)))
+               (format *error-output* "[ws-auth] Authorized connection for uid ~A from ~A~%" uid current-ip)))
            ;; 接続情報登録
            (setf (gethash ws *ws-clients*)
              (list :ws ws :subscriptions (make-hash-table :test 'equal)))
-
            ;; イベント登録
            ,@body
-
            ;; 接続開始とクローズハンドラー設定
            (lambda (_responder)
              (start-connection ws
-                               :on-close (lambda () (ws-utils:ws-close-handler ws)))))))))
+                               :on-close (lambda ()
+                                           (ws-utils:ws-close-handler ws)))))))))
 
 ;;; ---------------------------
 ;;; WebSocket ハンドラ例

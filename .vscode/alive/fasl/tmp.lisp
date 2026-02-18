@@ -1,194 +1,244 @@
-(in-package :controllers.ws)
+(in-package :websocket-app)
 
-(in-package :controllers.ws)
+;;; ---------------------------
+;;; グローバル変数
+;;; ---------------------------
+(defvar *http-routes* (make-hash-table :test #'equal))
+(defvar *ws-routes* (make-hash-table :test #'equal))
+(defparameter *ws-clients* (make-hash-table :test 'eq)) ; ws -> client
+(defparameter *subscriptions* (make-hash-table :test 'equal)) ; target -> (ws -> uuid)
+(defparameter *ws-sessions* (make-hash-table :test 'equal)) ; token -> session
+(defparameter *user-sessions* (make-hash-table :test 'equal)) ; uid -> token
 
-(defparameter *ws-token-ttl* 3600) ; 1時間 = 3600秒
+;;; ---------------------------
+;;; HTTP / WS ルーティング
+;;; ---------------------------
+(defvar *my-app*
+        (lambda (env)
+          (let* ((path (getf env :path-info))
+                 (method (getf env :request-method)))
+            (cond
+             ;; CORS preflight
+             ((string= method "OPTIONS")
+               (list 200 '(:content-type "text/plain") '("OK")))
 
-(defun handle-ws-token (env)
-  "WSトークンを生成し、1時間で期限切れになるよう管理"
-  (utils:with-invalid
-   (let* ((params (utils:extract-json-params env))
-          (uid (getf params :|uid|)))
+             ;; ---- WS は先に分岐 ----
+             ((gethash path *ws-routes*)
+               (funcall (gethash path *ws-routes*) env))
 
-     (format *error-output* "[ws-token] Received request with uid: ~A~%" uid)
+             ;; ---- ★ ws-auth は token 検証スキップ ----
+             ((string= path "/ws-auth")
+               (funcall (gethash path *http-routes*) env))
 
-     (unless uid
-       (return-from handle-ws-token :invalid))
+             ;; ---- それ以外の HTTP は token 必須 ----
+             ((not (server-utils:validate-service-token env))
+               (list 401 '(:content-type "text/plain") '("Unauthorized")))
 
-     ;; 古いトークンを掃除
-     (let ((old-token (gethash uid websocket-app:*user-sessions*)))
-       (when old-token
-             (remhash old-token websocket-app:*ws-sessions*)))
+             ((gethash path *http-routes*)
+               (funcall (gethash path *http-routes*) env))
 
-     ;; 新しいトークン生成
-     (let ((token (utils:uuid-string))
-           (now (get-universal-time)))
-       ;; 保存
-       (setf (gethash token websocket-app:*ws-sessions*)
-         (list :uid uid
-               :created-at now
-               :ip (getf env :remote-addr)))
+             (t
+               (list 404 '(:content-type "text/plain") '("Not Found")))))))
 
-       (setf (gethash uid websocket-app:*user-sessions*) token)
+;;; ---------------------------
+;;; HTTP / WS ルート定義マクロ
+;;; ---------------------------
+(defmacro defroute-http (path &body body)
+  `(setf (gethash ,path *http-routes*)
+     (lambda (env) ,@body)))
 
-       ;; 有効期限チェックを簡単に行うためのヘルパーを作っておく
-       (flet ((valid-token-p (tok)
-                             (let ((sess (gethash tok websocket-app:*ws-sessions*)))
-                               (and sess
-                                    (< (- (get-universal-time) (getf sess :created-at))
-                                       *ws-token-ttl*)))))
-         ;; 古いトークンをチェックして削除
-         (maphash (lambda (tok sess)
-                    (unless (valid-token-p tok)
-                      (remhash tok websocket-app:*ws-sessions*)
-                      (remhash (getf sess :uid) websocket-app:*user-sessions*)))
-                  websocket-app:*ws-sessions*))
+(defmacro defroute-ws (path &body body)
+  `(setf (gethash ,path *ws-routes*)
+     (lambda (env)
+       (block ws-auth-block
+         (let ((ws (make-server env)))
+           (format *error-output* "!!!!isdev!! [~A]~%" utils-env:*is-dev*)
+           ;; Cookie認証
+           (let* ((cookies (gethash "cookie" (getf env :headers)))
+                  (ws-token (when cookies (server-utils:get-cookie-value cookies "ws-token")))
+                  (session (when ws-token (gethash ws-token *ws-sessions*))))
+             ;; トークンが存在しない、またはセッションが見つからない場合は拒否
+             (unless (and ws-token session)
+               (format *error-output* "[ws-auth] No valid session found for token: ~A~%" ws-token)
+               (websocket-driver:close-connection ws 1008 "Unauthorized")
+               (return-from ws-auth-block nil))
+             ;; セッション情報の検証
+             (let ((uid (getf session :uid))
+                   (created-at (getf session :created-at))
+                   (session-ip (getf session :ip))
+                   (current-ip (getf env :remote-addr)))
+               ;; UIDの確認
+               (unless uid
+                 (format *error-output* "[ws-auth] Session has no uid~%")
+                 (websocket-driver:close-connection ws 1008 "Invalid session")
+                 (return-from ws-auth-block nil))
+               ;; セッションの有効期限チェック（例: 24時間）
+               (let ((age (- (get-universal-time) created-at)))
+                 (when (> age 86400) ; 24時間 = 86400秒
+                       (format *error-output* "[ws-auth] Session expired for uid ~A (age: ~A seconds)~%" uid age)
+                       (remhash ws-token *ws-sessions*)
+                       (remhash uid *user-sessions*)
+                       (websocket-driver:close-connection ws 1008 "Session expired")
+                       (return-from ws-auth-block nil)))
+               ;; IPアドレスの検証（オプション）
+               ;; (unless (string= session-ip current-ip) ...)
+               ;; user-sessionsとの整合性チェック
+               (let ((user-token (gethash uid *user-sessions*)))
+                 (unless (string= ws-token user-token)
+                   (format *error-output* "[ws-auth] Token mismatch for uid ~A~%" uid)
+                   (websocket-driver:close-connection ws 1008 "Token mismatch")
+                   (return-from ws-auth-block nil)))
+               (format *error-output* "[ws-auth] Authorized connection for uid ~A from ~A~%" uid current-ip)))
+           ;; 接続情報登録
+           (setf (gethash ws *ws-clients*)
+             (list :ws ws :subscriptions (make-hash-table :test 'equal)))
+           ;; イベント登録
+           ,@body
+           ;; 接続開始とクローズハンドラー設定
+           (lambda (_responder)
+             (start-connection ws
+                               :on-close (lambda ()
+                                           (ws-utils:ws-close-handler ws)))))))))
 
-       ;; 返却
-       (list :wsToken token)))))
+;;; ---------------------------
+;;; WebSocket ハンドラ例
+;;; ---------------------------
+(defroute-ws "/websocket"
+             (on :open ws
+                 (lambda ()
+                   (controllers.ws:ws-on-open ws)))
 
-; (let ((cookie (format nil
-;   "ws-token=~a; HttpOnly; Secure; Path=/; SameSite=Lax"
-;   token)))
+             (on :message ws
+                 (lambda (msg)
+                   (controllers.ws:ws-on-message ws msg)))
 
-(defun ws-on-open (ws)
-  (setf (gethash ws websocket-app:*ws-clients*)
-    (list :ws ws
-          :subscriptions (make-hash-table :test 'equal)))
-  (format t "[WS] OPEN: ~A~%" ws))
+             (on :close ws
+                 (lambda ()
+                   (controllers.ws:ws-on-close ws))))
 
+(defroute-http "/ws-token"
+               (server-utils:with-api-response(controllers.ws:handle-ws-token env)))
 
-(defun ws-on-message (ws msg)
-  (format t "[WS] RAW MESSAGE: ~A~%" msg)
-  (handler-case
-      (let* ((text (if (stringp msg)
-                       msg
-                       (babel:octets-to-string msg)))
-             (data (jonathan:parse text :as :hash-table))
-             (type (string-upcase (gethash "type" data))))
-        (dispatch-ws-message ws type data))
-    (error (e)
-      (format *error-output* "[WS ERROR] ~A~%" e))))
+(defroute-http "/"
+               '(200 (:content-type "text/plain") ("Hello from /5t")))
 
+(defroute-http "/login"
+               (server-utils:with-api-response (controllers.users:handle-login env)))
 
-(defun dispatch-ws-message (ws type data)
-  (cond
-   ((string= type "SUBSCRIBE")
-     (handle-ws-subscribe ws data))
-   ((string= type "UNSUBSCRIBE")
-     (handle-ws-unsubscribe ws data))
-   ((string= type "NODE-UPDATE")
-     (handle-ws-node-update ws data))
-   ((string= type "NODE-CREATE")
-     (handle-ws-node-create ws data))
-   ((string= type "NODE-DELETE")
-     (handle-ws-node-delete ws data))
-   (t
-     (format *error-output* "[WS] Unknown type: ~A~%" type))))
+(defroute-http "/user"
+               (server-utils:with-api-response (controllers.users:handle-get-user env)))
 
-(defun handle-ws-subscribe (ws data)
-  (let ((target (gethash "target" data)))
-    (when target
-          (ws-utils:ws-subscribe ws target))))
+(defroute-http "/users"
+               (server-utils:with-api-response (controllers.users:handle-get-users env)))
 
-(defun handle-ws-unsubscribe (ws data)
-  (let ((target (gethash "target" data)))
-    (when target
-          (ws-utils:ws-unsubscribe ws target))))
+(defroute-http "/all-users"
+               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
 
-(defun handle-ws-node-create (ws data)
-  (let* ((map-uuid (gethash "map-uuid" data))
-         (map-id (gethash "map-id" data))
-         (parent-id (gethash "parent-id" data))
-         (uid (gethash "uid" data))
-         (content (gethash "content" data))
-         (client-id (gethash "client-id" data)))
+(defroute-http "/create-user"
+               (server-utils:with-api-response (controllers.users:handle-create-user env)))
 
-    (format *error-output*
-        "[WS] Create params: map-id=~A, map-uuid=~A, parent-id=~A, uid=~A, content=~A, client-id=~A~%"
-      map-id map-uuid parent-id uid content client-id)
+(defroute-http "/update-user"
+               (server-utils:with-api-response (controllers.users:handle-update-user env)))
 
-    (when (and map-id map-uuid content uid)
-          ;; ① DB create
-          (let ((node-id (models.nodes:create-node map-id parent-id content uid)))
-            ;; ② WS broadcast
-            (ws-utils:ws-broadcast-to-target
-             (format nil "map-~A" map-uuid)
-             (jonathan:to-json
-              `(:type "NODE-CREATED"
-                      :node-Id ,node-id
-                      :parent-Id ,(or parent-id :null)
-                      :content ,content
-                      :uid ,uid
-                      :client-Id ,client-id)))))))
+(defroute-http "/delete-user"
+               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
 
+(defroute-http "/get-map"
+               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
 
-(defun handle-ws-node-update (ws data)
-  (let* ((id (gethash "node-id" data))
-         ;; WS でも「送られたかどうか」を見る
-         (has-parent-id (nth-value 1 (gethash "parent-id" data)))
-         (parent-id (gethash "parent-id" data))
-         (content (gethash "content" data))
-         (client-id (gethash "client-id" data))
-         ;; REST と同じ JSON 用 parent-id
-         (json-parent-id
-          (if parent-id
-              parent-id
-              :null)))
+(defroute-http "/all-maps"
+               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
 
-    ; (format *error-output*
-    ;     "[WS] Update params: id=~A, has-parent-id=~A, parent-id=~A, content=~A, client-id=~A~%"
-    ;   id has-parent-id parent-id content client-id)
+(defroute-http "/get-maps-by-uid"
+               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
 
-    (when id
-          ;; ① DB更新（REST と同じ）
-          (let ((updated-node (models.nodes:update-node
-                               id
-                               :content content
-                               :parent-id parent-id
-                               :parent-id-specified-p has-parent-id)))
+(defroute-http "/create-map"
+               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
 
-            ;; 返り値を表示
-            (format *error-output* "[WS] Updated node result: ~A~%" updated-node)
+(defroute-http "/update-map"
+               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
 
-            ;; ② map-uuid 特定
-            (let ((map-uuid (controllers.nodes:node-id->map-uuid id)))
-              (when map-uuid
-                    ;; updated-node から値を取得
-                    (let ((db-id (getf updated-node :id))
-                          (db-content (getf updated-node :content))
-                          (db-parent-id (getf updated-node :parent-id)))
-                      ;; ③ WSブロードキャスト
-                      (ws-utils:ws-broadcast-to-target
-                       (format nil "map-~A" map-uuid)
-                       (jonathan:to-json
-                        `(:type "NODE-UPDATED"
-                                :node-Id ,db-id
-                                :content ,db-content
-                                :parent-Id ,(if db-parent-id db-parent-id :null)
-                                :client-Id ,client-id))))))))))
+(defroute-http "/delete-map"
+               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
 
-(defun handle-ws-node-delete (ws data)
-  (let* ((id (gethash "node-id" data))
-         (client-id (gethash "client-id" data))
-         (map-uuid (controllers.nodes:node-id->map-uuid id)))
+(defroute-http "/count-private-maps"
+               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
 
-    (format *error-output*
-        "[WS] Delete params: node-id=~A, client-id=~A, map-uuid=~A~%"
-      id client-id map-uuid)
+(defroute-http "/search-public-maps"
+               (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
 
-    (when id
-          ;; ① DB削除（論理削除でも物理削除でも可）
-          (models.nodes:delete-node id)
+(defroute-http "/get-latest-public-maps"
+               (server-utils:with-api-response (controllers.maps:handle-get-public-maps env)))
 
-          ;; ② map-uuid があれば WS broadcast
-          (when map-uuid
-                (ws-utils:ws-broadcast-to-target
-                 (format nil "map-~A" map-uuid)
-                 (jonathan:to-json
-                  `(:type "NODE-DELETED"
-                          :node-Id ,id
-                          :client-Id ,client-id)))))))
+(defroute-http "/all-nodes"
+               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
 
-(defun ws-on-close (ws)
-  (ws-utils:ws-close-handler ws))
+(defroute-http "/create-node"
+               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
+
+(defroute-http "/update-node"
+               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
+
+(defroute-http "/delete-node"
+               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
+
+(defroute-http "/delete-node-descendants"
+               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
+
+(defroute-http "/get-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
+
+(defroute-http "/get-map-members-by-map-id"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
+
+(defroute-http "/get-map-members-by-user-uid"
+               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
+
+(defroute-http "/all-map-members"
+               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
+
+(defroute-http "/create-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
+
+(defroute-http "/delete-map-member"
+               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
+
+(defroute-http "/get-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
+
+(defroute-http "/get-map-invitation-by-token"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
+
+(defroute-http "/get-map-invitation-by-map-uuid"
+               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
+
+(defroute-http "/create-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
+
+(defroute-http "/delete-map-invitation"
+               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
+
+(defroute-http "/get-map-details"
+               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
+
+(defvar *current-server* nil
+        "現在起動中の Mindmap サーバーを保持。")
+
+(defun start-app (&key (port 5000))
+  "サーバーを起動してサーバーオブジェクトを返す。"
+  ;; すでにサーバーがあれば停止してから起動
+  (when *current-server*
+        (stop-app))
+  (format t "Starting Mindmap server on port ~a...~%" port)
+  ;; Clack のサーバーを起動してオブジェクトを保存
+  (setf *current-server* (clack:clackup *my-app* :server :woo :port port))
+  *current-server*)
+
+(defun stop-app ()
+  "現在のサーバーを停止する。"
+  (when *current-server*
+        (format t "Stopping Mindmap server...~%")
+        (ignore-errors
+          ;; Clack/Woo 停止関数
+          (clack:stop *current-server*))
+        (setf *current-server* nil)))
