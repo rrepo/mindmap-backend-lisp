@@ -63,12 +63,23 @@
 (defun start-mindmap-server ()
   (utils-env:load-env)
   (init-db-utils:init-db)
-  (format t "Starting Mindmap server on port 5000...~%")
-  (setf *server*
-    (clack:clackup
-     (dev-reloader websocket-app::*my-app*)
-     :server :woo
-     :port 5000)))
+
+  (if utils-env:*is-dev*
+      ;; ===== 開発環境 =====
+      (progn
+       (format t "Starting Mindmap server (DEV mode) on port 5000...~%")
+       (setf *server*
+         (clack:clackup
+          (dev-reloader websocket-app::*my-app*)
+          :server :woo
+          :port 5000)))
+
+      ;; ===== 本番環境 =====
+      (progn
+       (format t "Starting Mindmap server (PROD mode) on port 5000...~%")
+       (setf *server*
+         (websocket-app:start-app :port 5000)))))
+
 
 (start-mindmap-server)
 
