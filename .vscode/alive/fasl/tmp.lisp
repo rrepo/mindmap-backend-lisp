@@ -76,9 +76,8 @@
           (uid (getf params :|uid|))
           (name (getf params :|name|)))
      ;; ← ここでログ出力
-    ;  (format *error-output* "Token param: ~A~%" token)
-     (format *error-output* "Authenticated UID: ~A~%"
-     uid)
+     ;  (format *error-output* "Token param: ~A~%" token)
+     (format *error-output* "Authenticated UID: ~A~%" uid)
      (format *error-output* "Authenticated name!!!!: ~A~%" name)
      (when (and uid name)
            (models.users:create-user uid name)
