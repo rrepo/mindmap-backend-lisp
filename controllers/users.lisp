@@ -71,12 +71,12 @@
   (utils:with-invalid
    (format *error-output* "Login called!!!!~%")
    (let* ((params (utils:extract-json-params env))
-          (token (getf params :|token|))
-          (verify-info (verify-token:authenticate-and-get-uid token))
-          (uid (car verify-info))
-          (name (cdr verify-info)))
+          ; (token (getf params :|token|))
+          ; (verify-info (verify-token:authenticate-and-get-uid token))
+          (uid (getf params :|uid|))
+          (name (getf params :|name|)))
      ;; ← ここでログ出力
-     (format *error-output* "Token param: ~A~%" token)
+    ;  (format *error-output* "Token param: ~A~%" token)
      (format *error-output* "Authenticated UID: ~A~%" uid)
      (format *error-output* "Authenticated name!!!!: ~A~%" name)
      (when (and uid name)
