@@ -19,4 +19,4 @@ jobs:
           script: |
             cd /home/user/quicklisp/local-projects/mindmap-backend-lisp
             git pull origin main
-            sudo systemctl restart mindmap
+            systemctl restart mindmap
