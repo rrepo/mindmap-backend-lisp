@@ -52,7 +52,6 @@
      (lambda (env)
        (block ws-auth-block
          (let ((ws (make-server env)))
-           (format *error-output* "!!!!isdev!! [~A]~%" utils-env:*is-dev*)
            ;; Cookie認証
            (let* ((cookies (gethash "cookie" (getf env :headers)))
                   (ws-token (when cookies (server-utils:get-cookie-value cookies "ws-token")))
@@ -60,8 +59,8 @@
              ;; トークンが存在しない、またはセッションが見つからない場合は拒否
              (unless (and ws-token session)
                (format *error-output* "[ws-auth] No valid session found for token: ~A~%" ws-token)
-               (websocket-driver:close-connection ws 1008 "Unauthorized")
-               (return-from ws-auth-block nil))
+               (return-from ws-auth-block
+                            '(401 (:content-type "text/plain") ("Unauthorized"))))
              ;; セッション情報の検証
              (let ((uid (getf session :uid))
                    (created-at (getf session :created-at))
