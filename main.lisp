@@ -81,7 +81,9 @@
          (websocket-app:start-app :port 5000)))))
 
 
-(start-mindmap-server)
+; (start-mindmap-server)
+(defun main ()
+  (start-mindmap-server))
 
 ; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
 
