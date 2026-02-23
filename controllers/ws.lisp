@@ -150,6 +150,10 @@
 
             ;; 返り値を表示
             (format *error-output* "[WS] Updated node result: ~A~%" updated-node)
+            (format *error-output* "[WS] Updating node-id: ~A~%" id)
+            (format *error-output*
+                "[WS] Node exists? ~A~%"
+              (models.nodes:get-node-by-id id))
 
             ;; ② map-uuid 特定
             (let ((map-uuid (controllers.nodes:node-id->map-uuid id)))
