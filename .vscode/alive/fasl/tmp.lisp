@@ -102,11 +102,11 @@
          (parent-id (gethash "parent-id" data))
          (uid (gethash "uid" data))
          (content (gethash "content" data))
-         (client-id (gethash "client-id" data)))
+         (client-id (gethash "client-id" data))
+         (front-node-id (gethash "front-node-id" data)))
 
-    (format *error-output*
-        "[WS] Create params: map-id=~A, map-uuid=~A, parent-id=~A, uid=~A, content=~A, client-id=~A~%"
-      map-id map-uuid parent-id uid content client-id)
+    (format *error-output* "[WS] Received NODE-CREATE with map-uuid: ~A, map-id: ~A, parent-id: ~A, uid: ~A, content: ~A, client-id: ~A, front-node-id: ~A~%"
+      map-uuid map-id parent-id uid content client-id front-node-id)
 
     (when (and map-id map-uuid content uid)
           ;; ① DB create
@@ -120,8 +120,8 @@
                       :parent-Id ,(or parent-id :null)
                       :content ,content
                       :uid ,uid
-                      :client-Id ,client-id)))))))
-
+                      :client-Id ,client-id
+                      :front-node-id , front-node-id)))))))
 
 (defun handle-ws-node-update (ws data)
   (let* ((id (gethash "node-id" data))
