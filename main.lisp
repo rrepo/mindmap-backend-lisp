@@ -63,7 +63,7 @@
 
 (defun start-mindmap-server ()
   (utils-env:load-env)
-  ; (init-db-utils:init-db)
+  (init-db-utils:init-db)
 
   (if utils-env:*is-dev*
       ;; ===== 開発環境 =====
@@ -82,14 +82,14 @@
          (websocket-app:start-app :port 5000)))))
 
 
-; (start-mindmap-server)
-; (defun main ()
-;   (start-mindmap-server))
-
+(start-mindmap-server)
 (defun main ()
-  (start-mindmap-server)
-  ;; プロセスを終了させない
-  (loop (sleep 3600)))
+  (start-mindmap-server))
+
+; (defun main ()
+;   (start-mindmap-server)
+;   ;; プロセスを終了させない
+;   (loop (sleep 3600)))
 
 ; rlwrap sbcl --eval '(asdf:load-system :mindmap)'
 

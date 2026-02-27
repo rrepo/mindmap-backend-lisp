@@ -7,8 +7,7 @@
 (defun handle-get-user (env)
   (utils:with-invalid
    (let* ((params (utils:extract-json-params env))
-          (uid (getf params :|uid|))
-          (name (getf params :|name|)))
+          (uid (getf params :|uid|)))
      (format *error-output* "Get user UID: ~A~%" uid)
      (when (and uid (not (string= uid "")))
            (models.users:get-user uid)))))
