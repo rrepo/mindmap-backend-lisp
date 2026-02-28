@@ -77,7 +77,7 @@
                (return-from ws-auth-block nil))
 
              (let ((age (- (get-universal-time) created-at)))
-               (when (> age 86400)
+               (when (> age 500)
                      (remhash ws-token *ws-sessions*)
                      (remhash uid *user-sessions*)
                      (websocket-driver:close-connection ws 1008 "Session expired")
@@ -93,138 +93,146 @@
                  "[ws-auth] Authorized connection for uid ~A~%" uid))
 
            ;; 登録
-           (setf (gethash ws *ws-clients*)
-             (list :ws ws
-                   :subscriptions (make-hash-table :test 'equal)))
+           ; (setf (gethash ws *ws-clients*)
+           ;   (list :ws ws
+           ;         :subscriptions (make-hash-table :test 'equal)))
 
            ,@body
 
            (lambda (_responder)
-             (start-connection
-              ws
-              :on-close (lambda ()
-                          (ws-utils:ws-close-handler ws)))))))))
+             (websocket-driver:start-connection ws
+                                                :on-close (lambda ()
+                                                            (format t "[TEST] close from start-connection~%")
+                                                            (controllers.ws:ws-on-close ws)))))))))
 
 ;;; ---------------------------
 ;;; WebSocket ハンドラ例
 ;;; ---------------------------
+; (defroute-ws "/websocket"
+;   (on :open ws
+;       (lambda () (controllers.ws:ws-on-open ws)))
+;   (on :message ws
+;       (lambda (msg) (controllers.ws:ws-on-message ws msg)))
+;   (on :close ws
+;       (lambda () (controllers.ws:ws-on-close ws)))) ; ← これだけで管理
+
 (defroute-ws "/websocket"
-             (on :open ws
-                 (lambda ()
-                   (controllers.ws:ws-on-open ws)))
+  (websocket-driver:on :open ws
+                       (lambda ()
+                         (controllers.ws:ws-on-open ws)))
 
-             (on :message ws
-                 (lambda (msg)
-                   (controllers.ws:ws-on-message ws msg)))
+  (websocket-driver:on :message ws
+                       (lambda (msg)
+                         (controllers.ws:ws-on-message ws msg)))
 
-             (on :close ws
-                 (lambda ()
-                   (controllers.ws:ws-on-close ws))))
+  (websocket-driver:on :close ws
+                       (lambda ()
+                         (controllers.ws:ws-on-close ws))))
 
 (defroute-http "/ws-token"
-               (server-utils:with-api-response(controllers.ws:handle-ws-token env)))
+  (server-utils:with-api-response(controllers.ws:handle-ws-token env)))
 
 (defroute-http "/"
-               '(200 (:content-type "text/plain") ("Hello from /5t")))
+  '(200 (:content-type "text/plain") ("Hello from /5t")))
 
 (defroute-http "/login"
-               (server-utils:with-api-response (controllers.users:handle-login env)))
+  (server-utils:with-api-response (controllers.users:handle-login env)))
 
 (defroute-http "/user"
-               (server-utils:with-api-response (controllers.users:handle-get-user env)))
+  (server-utils:with-api-response (controllers.users:handle-get-user env)))
 
 (defroute-http "/users"
-               (server-utils:with-api-response (controllers.users:handle-get-users env)))
+  (server-utils:with-api-response (controllers.users:handle-get-users env)))
 
 (defroute-http "/all-users"
-               (server-utils:with-api-response (controllers.users:handle-get-all-users)))
+  (server-utils:with-api-response (controllers.users:handle-get-all-users)))
 
 (defroute-http "/create-user"
-               (server-utils:with-api-response (controllers.users:handle-create-user env)))
+  (server-utils:with-api-response (controllers.users:handle-create-user env)))
 
 (defroute-http "/update-user"
-               (server-utils:with-api-response (controllers.users:handle-update-user env)))
+  (server-utils:with-api-response (controllers.users:handle-update-user env)))
 
 (defroute-http "/delete-user"
-               (server-utils:with-api-response (controllers.users:handle-delete-user env)))
+  (server-utils:with-api-response (controllers.users:handle-delete-user env)))
 
 (defroute-http "/get-map"
-               (server-utils:with-api-response (controllers.maps:handle-get-map env)))
+  (server-utils:with-api-response (controllers.maps:handle-get-map env)))
 
 (defroute-http "/all-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
+  (server-utils:with-api-response (controllers.maps:handle-get-all-maps)))
 
 (defroute-http "/get-maps-by-uid"
-               (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
+  (server-utils:with-api-response (controllers.maps:handle-get-maps-by-uid env)))
 
 (defroute-http "/create-map"
-               (server-utils:with-api-response (controllers.maps:handle-create-map env)))
+  (server-utils:with-api-response (controllers.maps:handle-create-map env)))
 
 (defroute-http "/update-map"
-               (server-utils:with-api-response (controllers.maps:handle-update-map env)))
+  (server-utils:with-api-response (controllers.maps:handle-update-map env)))
 
 (defroute-http "/delete-map"
-               (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
+  (server-utils:with-api-response (controllers.maps:handle-delete-map env)))
 
 (defroute-http "/count-private-maps"
-               (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
+  (server-utils:with-api-response (controllers.maps:handle-count-private-maps env)))
 
 (defroute-http "/search-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
+  (server-utils:with-api-response (controllers.maps:handle-get-public-maps-by-search env)))
 
 (defroute-http "/get-latest-public-maps"
-               (server-utils:with-api-response (controllers.maps:handle-get-public-maps env)))
+  (server-utils:with-api-response (controllers.maps:handle-get-public-maps env)))
 
 (defroute-http "/all-nodes"
-               (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
+  (server-utils:with-api-response (controllers.nodes:handle-get-all-nodes)))
 
 (defroute-http "/create-node"
-               (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
+  (server-utils:with-api-response (controllers.nodes:handle-create-node env)))
 
 (defroute-http "/update-node"
-               (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
+  (server-utils:with-api-response (controllers.nodes:handle-update-node env)))
 
 (defroute-http "/delete-node"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
+  (server-utils:with-api-response (controllers.nodes:handle-delete-node env)))
 
 (defroute-http "/delete-node-descendants"
-               (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
+  (server-utils:with-api-response (controllers.nodes:handle-delete-node-descendants env)))
 
 (defroute-http "/get-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
+  (server-utils:with-api-response (controllers.map-members:handle-get-map-member env)))
 
 (defroute-http "/get-map-members-by-map-id"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
+  (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-map-id env)))
 
 (defroute-http "/get-map-members-by-user-uid"
-               (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
+  (server-utils:with-api-response (controllers.map-members:handle-get-map-members-by-user-uid env)))
 
 (defroute-http "/all-map-members"
-               (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
+  (server-utils:with-api-response (controllers.map-members:handle-get-all-map-members)))
 
 (defroute-http "/create-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
+  (server-utils:with-api-response (controllers.map-members:handle-create-map-member env)))
 
 (defroute-http "/delete-map-member"
-               (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
+  (server-utils:with-api-response (controllers.map-members:handle-delete-map-member env)))
 
 (defroute-http "/get-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
+  (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation env)))
 
 (defroute-http "/get-map-invitation-by-token"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
+  (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-token env)))
 
 (defroute-http "/get-map-invitation-by-map-uuid"
-               (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
+  (server-utils:with-api-response (controllers.map-invitations:handle-get-map-invitation-by-map-uuid env)))
 
 (defroute-http "/create-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
+  (server-utils:with-api-response (controllers.map-invitations:handle-create-map-invitation env)))
 
 (defroute-http "/delete-map-invitation"
-               (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
+  (server-utils:with-api-response (controllers.map-invitations:handle-delete-map-invitation env)))
 
 (defroute-http "/get-map-details"
-               (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
+  (server-utils:with-api-response (controllers.maps:handle-get-map-details env)))
 
 (defvar *current-server* nil
         "現在起動中の Mindmap サーバーを保持。")

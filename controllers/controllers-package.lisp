@@ -6,7 +6,7 @@
 
 (defpackage :ws-utils
   (:use :cl :jonathan)
-  (:export :ws-close-handler :ws-subscribe :ws-unsubscribe :ws-broadcast-to-target :ws-broadcast))
+  (:export :ws-close-handler :ws-subscribe :ws-unsubscribe :ws-broadcast-to-target :ws-broadcast :safe-ws-send))
 
 (defpackage :controllers.ws
   (:use :cl)

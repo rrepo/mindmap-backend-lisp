@@ -2,7 +2,7 @@
 
 (in-package :controllers.ws)
 
-(defparameter *ws-token-ttl* 3600) ; 1時間 = 3600秒
+(defparameter *ws-token-ttl* 500) ; 1時間 = 3600秒
 
 (defun handle-ws-token (env)
   "WSトークンを生成し、1時間で期限切れになるよう管理"
@@ -195,4 +195,5 @@
                           :client-Id ,client-id)))))))
 
 (defun ws-on-close (ws)
+  (format *error-output* "[WS] CLOSE: ~A~%" ws)
   (ws-utils:ws-close-handler ws))
