@@ -104,14 +104,6 @@
 ;;; ---------------------------
 ;;; WebSocket ハンドラ例
 ;;; ---------------------------
-; (defroute-ws "/websocket"
-;   (on :open ws
-;       (lambda () (controllers.ws:ws-on-open ws)))
-;   (on :message ws
-;       (lambda (msg) (controllers.ws:ws-on-message ws msg)))
-;   (on :close ws
-;       (lambda () (controllers.ws:ws-on-close ws)))) ; ← これだけで管理
-
 (defroute-ws "/websocket"
   (websocket-driver:on :open ws
                        (lambda ()
@@ -121,9 +113,10 @@
                        (lambda (msg)
                          (controllers.ws:ws-on-message ws msg)))
 
-  (websocket-driver:on :close ws
-                       (lambda ()
-                         (controllers.ws:ws-on-close ws))))
+  (lambda (_responder)
+    (websocket-driver:start-connection ws
+                                       :on-close (lambda ()
+                                                   (controllers.ws:ws-on-close ws)))))
 
 (defroute-http "/ws-token"
   (server-utils:with-api-response(controllers.ws:handle-ws-token env)))
