@@ -26,10 +26,6 @@
              ((gethash path *ws-routes*)
                (funcall (gethash path *ws-routes*) env))
 
-             ;; ---- ★ ws-auth は token 検証スキップ ----
-             ((string= path "/ws-auth")
-               (funcall (gethash path *http-routes*) env))
-
              ;; ---- それ以外の HTTP は token 必須 ----
              ((not (server-utils:validate-service-token env))
                (list 401 '(:content-type "text/plain") '("Unauthorized")))
